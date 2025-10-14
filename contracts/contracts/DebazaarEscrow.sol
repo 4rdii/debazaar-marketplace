@@ -106,6 +106,45 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         }
     }
 
+    /// @notice Delivers a disputable listing
+    /// @param _listingId The ID of the listing
+    /// @dev the seller marks the listing as delivered, when he has delivered the listing to the buyer 
+    function deliverDisputableListing(bytes32 _listingId) external nonReentrant {
+        Listing storage listing = s_listings[_listingId];
+        // Checks
+        if (listing.escrowType != EscrowType.DISPUTABLE) revert InvalidEscrowType();
+        if (listing.state != State.Filled) revert InvalidState();
+        if (msg.sender != listing.seller) revert NotSeller();
+        // Effects
+        listing.state = State.Delivered;
+        // Interactions
+        emit DeBazaar__Delivered(_listingId);
+    }
+
+    function deliverApiApprovalListing(bytes32 _listingId) external nonReentrant {
+        // not implemented yet      
+    }
+
+    function deliverOnchainApprovalListing(bytes32 _listingId) external nonReentrant {
+        // not implemented yet
+    }
+
+    /// @notice Disputs a listing
+    /// @param _listingId The ID of the listing
+    /// @dev Only the buyer or seller can dispute the listing
+    /// @dev Listing is disputable by buyer or seller after delivery is started by the seller
+    function disputeListing(bytes32 _listingId) external nonReentrant {
+        Listing storage listing = s_listings[_listingId];
+        // Checks
+        if (listing.escrowType != EscrowType.DISPUTABLE) revert InvalidEscrowType();
+        if (listing.state != State.Delivered) revert InvalidState();
+        if (msg.sender != listing.buyer && msg.sender != listing.seller) revert NotBuyerOrSeller();
+        // Effects
+        listing.state = State.Disputed;
+        // Interactions
+        emit DeBazaar__Disputed(_listingId, msg.sender);
+    }
+
      /**
      * @notice Resolves the deal in favor of the buyer or seller.
      * @dev This function is only callable by the arbiter in case of a dispute
@@ -122,6 +161,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
             }
             else if (listing.state == State.Delivered) {
                 require(msg.sender == listing.buyer, "Only the buyer can resolve a delivered deal");
+                _toBuyer = false;
             } else {
                 revert InvalidState();
             }
@@ -144,18 +184,6 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
             emit DeBazaar__Released(_listingId);
         }
     } 
-
-    // ========= Setter Functions =========
-
-    /// @notice Sets the arbiter address
-    /// @param _arbiter The new arbiter address
-    function setArbiter(address _arbiter) external onlyOwner {
-        s_arbiter = _arbiter;
-    }
-
-    function setFeeBasisPoints(uint256 _feeBasisPoints) external onlyOwner {
-        s_feeBasisPoints = _feeBasisPoints;
-    }
 
     // ========= Getter Functions =========
     

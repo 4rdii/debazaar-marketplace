@@ -40,7 +40,8 @@ interface IDebazaarEscrow {
     event DeBazaar__Resolved(bytes32 indexed listingId, address indexed to);
     event DeBazaar__Released(bytes32 indexed listingId);
     event DeBazaar__Refunded(bytes32 indexed listingId);
-    
+    event DeBazaar__Delivered(bytes32 indexed listingId);
+    event DeBazaar__Disputed(bytes32 indexed listingId, address indexed sender);
     // ========= Errors =========
     error ZeroAddress();
     error InvalidDeadline();
@@ -52,6 +53,7 @@ interface IDebazaarEscrow {
     error ListingExpired();
     error InvalidDeadlineForRefund();   
     error NotBuyerOrSeller();
+    error NotSeller();
 
     // ========= Functions =========
 }
