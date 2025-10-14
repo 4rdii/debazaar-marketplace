@@ -13,14 +13,15 @@ import {IDebazaarEscrow} from "./IDebazaarEscrow.sol";
 contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
     uint64 public constant MIN_EXPIRATION = 1 hours;
-    
-    address public s_arbiter;
-    mapping(bytes32 => Listing) public s_listings;
+    uint256 public constant BASE_BASIS_POINTS = 10000;
 
-
-        
+    uint256 public s_feeBasisPoints;
+    address private s_arbiter;
+    mapping(bytes32 => Listing) private s_listings;
+  
     constructor(address _owner) Ownable(_owner) {}
 
+    // ========= External Functions =========
     /// @notice Creates a new listing for the seller
     /// @param _listingId The ID of the listing
     /// @param _token The token of the listing
@@ -103,5 +104,93 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
             listing.state = State.Canceled;
             emit DeBazaar__ListingCancelled(msg.sender, _listingId);
         }
+    }
+
+     /**
+     * @notice Resolves the deal in favor of the buyer or seller.
+     * @dev This function is only callable by the arbiter in case of a dispute
+     *      or by the escrow itself in case of a fullfillment event.
+     * @param _listingId The id of the escrow.
+     */
+    function resolveDeal(bytes32 _listingId, bool _toBuyer) external nonReentrant {
+        Listing storage listing = s_listings[_listingId];
+        // Checks
+        if (listing.escrowType == EscrowType.DISPUTABLE) {
+            if (listing.state == State.Disputed) {
+                require(msg.sender == s_arbiter , "Only the arbiter can resolve a disputed deal");
+                emit DeBazaar__Resolved(_listingId, _toBuyer ? listing.buyer : listing.seller);
+            }
+            else if (listing.state == State.Delivered) {
+                require(msg.sender == listing.buyer, "Only the buyer can resolve a delivered deal");
+            } else {
+                revert InvalidState();
+            }
+        } else if (listing.escrowType == EscrowType.API_APPROVAL) {
+            require(
+                msg.sender == address(this) && listing.state == State.Delivered, "Only the escrow itself can resolve this deal"
+            );
+        } else if (listing.escrowType == EscrowType.ONCHAIN_APPROVAL) {
+            require(msg.sender == address(this), "Only the escrow itself can resolve this deal");
+        }
+        // Effects
+        _toBuyer? listing.state = State.Refunded : listing.state = State.Released;
+        
+        // Interactions
+        if (_toBuyer) {
+            _transferWithFee(address(listing.token), listing.buyer, listing.amount);
+            emit DeBazaar__Refunded(_listingId);
+        } else {
+            _transferWithFee(address(listing.token), listing.seller, listing.amount);
+            emit DeBazaar__Released(_listingId);
+        }
+    } 
+
+    // ========= Setter Functions =========
+
+    /// @notice Sets the arbiter address
+    /// @param _arbiter The new arbiter address
+    function setArbiter(address _arbiter) external onlyOwner {
+        s_arbiter = _arbiter;
+    }
+
+    function setFeeBasisPoints(uint256 _feeBasisPoints) external onlyOwner {
+        s_feeBasisPoints = _feeBasisPoints;
+    }
+
+    // ========= Getter Functions =========
+    
+    /// @notice Returns the listing details
+    /// @param _listingId The ID of the listing
+    /// @return The listing details
+    function getListing(bytes32 _listingId) external view returns (Listing memory) {
+        return s_listings[_listingId];
+    }
+
+    function getArbiter() external view returns (address) {
+        return s_arbiter;
+    }
+
+    function getFee() external view returns (uint256) {
+        return s_feeBasisPoints;
+    }
+
+    // ========= Internal Functions ========= 
+    /// @dev Calculates the protocol fee for a given amount.
+    /// @param amount The gross amount.
+    /// @return The fee portion.
+
+    function _calculateFee(uint256 amount) internal view returns (uint256) {
+        return amount * s_feeBasisPoints / BASE_BASIS_POINTS;
+    }
+
+    /// @dev Transfers amount minus fee to recipient and fee to owner.
+    /// @param token The ERC20 token address.
+    /// @param to The recipient of the net amount.
+    /// @param amount The gross amount to distribute.
+    function _transferWithFee(address token, address to, uint256 amount) internal {
+        uint256 fee = _calculateFee(amount);
+        uint256 amountAfterFee = amount - fee;
+        IERC20(token).safeTransfer(to, amountAfterFee);
+        IERC20(token).safeTransfer(owner(), fee);
     }
 }

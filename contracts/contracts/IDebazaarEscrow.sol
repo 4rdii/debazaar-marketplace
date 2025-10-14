@@ -37,6 +37,10 @@ interface IDebazaarEscrow {
     event DeBazaar__ListingFilled(bytes32 indexed listingId, address indexed buyer, uint64 deadline);
     event DeBazaar__ListingCancelled(address indexed sender, bytes32 indexed listingId);
     event DeBazaar__ListingReset(bytes32 indexed listingId);
+    event DeBazaar__Resolved(bytes32 indexed listingId, address indexed to);
+    event DeBazaar__Released(bytes32 indexed listingId);
+    event DeBazaar__Refunded(bytes32 indexed listingId);
+    
     // ========= Errors =========
     error ZeroAddress();
     error InvalidDeadline();
