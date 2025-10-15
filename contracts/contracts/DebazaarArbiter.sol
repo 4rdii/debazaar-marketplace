@@ -5,38 +5,36 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IEntropyConsumer} from "@pythnetwork/entropy-sdk-solidity/IEntropyConsumer.sol";
 import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
 import {IDebazaarEscrow} from "./interfaces/IDebazaarEscrow.sol";
-contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
+contract DebazaarArbiter is ReentrancyGuard, IEntropyConsumer, Ownable {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    bytes32 public constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
-    bytes32 public constant ESCROW_ROLE = keccak256("ESCROW_ROLE");
     uint256 public constant ARBITERS_PER_LISTING = 3;
     // ========= Errors =========
 
     error ZeroAddress();
     error ListingsAlreadyInQueue(bytes32 listing);
-    error InsufficientFeeSentForRandomNumberGeneration();
-    error FailedToRefund();
     error UnAuthorized();
     error RandomnessNotReceived();
-    error InvalidSequenceNumber();
     error InvalidState();
+
     // ========= Events =========
 
     event ArbiterAdded(address indexed arbiter);
     event ArbiterRemoved(address indexed arbiter);
     event ListingsAddedToQueue(bytes32 indexed listings);
-    event ListingsResolved(bytes32[] indexed listings);
+    event ListingsResolved(bytes32 indexed listings, bool indexed toBuyer);
     event RandomnessReceived(bytes32 indexed listingId, bytes32 indexed randomness);
     event RandomnessRequested(bytes32 indexed listingId, uint64 indexed sequenceNumber);
     event VoteCast(bytes32 indexed listingId, address indexed voter, Vote indexed vote);
+    event DebazaarEscrowSet(address indexed debazaarEscrow);
+
     // ========= State Variables =========
 
     address private s_debazaarEscrow;
@@ -49,7 +47,7 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
         FOR_BUYER,
         FOR_SELLER
     }
-    
+
     enum State {
         Disputed,
         Resolved
@@ -68,14 +66,12 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
     //sequenceNumber => listingId
     mapping(uint64 => bytes32) private s_sequenceNumberToListingId;
 
-    constructor(address _owner, address[] memory _InitialArbitrators, address _entropyV2) {
+    constructor(address _owner, address[] memory _InitialArbitrators, address _entropyV2) Ownable(_owner) {
         if (_owner == address(0) || _entropyV2 == address(0)) revert ZeroAddress();
         s_entropyV2 = IEntropyV2(_entropyV2);
-        _grantRole(DEFAULT_ADMIN_ROLE, _owner);
         if (_InitialArbitrators.length > 0) {
             for (uint256 i = 0; i < _InitialArbitrators.length; i++) {
                 s_arbitrators.add(_InitialArbitrators[i]);
-                grantRole(ARBITER_ROLE, _InitialArbitrators[i]);
                 emit ArbiterAdded(_InitialArbitrators[i]);
             }
         }
@@ -83,7 +79,8 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
 
     // ========= External Functions =========
 
-    function addListingToQueue(bytes32 _listingId) external payable onlyRole(ESCROW_ROLE) {
+    function addListingToQueue(bytes32 _listingId) external payable {
+        if (msg.sender != s_debazaarEscrow) revert UnAuthorized();
         bool result = s_listingsQueue.add(_listingId);
         if (result) {
             _requestRandomNumber(_listingId);
@@ -115,32 +112,32 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
         if (votesForBuyer >= ARBITERS_PER_LISTING / 2 + 1) {
             disputedListing.state = State.Resolved;
             IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, true);
+            emit ListingsResolved(_listingId, true);
         } else if (votesForSeller >= ARBITERS_PER_LISTING / 2 + 1) {
             disputedListing.state = State.Resolved;
             IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, false);
+            emit ListingsResolved(_listingId, false);
         }
     }
-    function setDebazaarEscrow(address _debazaarEscrow) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setDebazaarEscrow(address _debazaarEscrow) external onlyOwner {
         if (_debazaarEscrow == address(0)) revert ZeroAddress();
         s_debazaarEscrow = _debazaarEscrow;
-        grantRole(ESCROW_ROLE, _debazaarEscrow);
+        emit DebazaarEscrowSet(_debazaarEscrow);
     }
 
     function addOrRemoveArbiters(address[] calldata _arbiter, bool[] calldata _add)
         external
-        onlyRole(DEFAULT_ADMIN_ROLE)
+        onlyOwner
     {
         for (uint256 i = 0; i < _arbiter.length; i++) {
             if (_add[i]) {
                 bool result = s_arbitrators.add(_arbiter[i]);
                 if (result) {
-                    grantRole(ARBITER_ROLE, _arbiter[i]);
                     emit ArbiterAdded(_arbiter[i]);
                 }
             } else {
                 bool result = s_arbitrators.remove(_arbiter[i]);
                 if (result) {
-                    revokeRole(ARBITER_ROLE, _arbiter[i]);
                     emit ArbiterRemoved(_arbiter[i]);
                 }
             }
