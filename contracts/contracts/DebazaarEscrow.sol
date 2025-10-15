@@ -6,6 +6,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IDebazaarEscrow} from "./interfaces/IDebazaarEscrow.sol";
+import {IDebazaarArbiter} from "./interfaces/IDebazaarArbiter.sol";
+import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
 
 /// @title Debazaar Escrow
 /// @author 4rdii
@@ -15,7 +17,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     uint64 public constant MIN_EXPIRATION = 1 hours;
     uint256 public constant BASE_BASIS_POINTS = 10000;
 
-    uint256 public s_feeBasisPoints;
+    uint256 private s_feeBasisPoints;
     address private s_arbiter;
     mapping(bytes32 => Listing) private s_listings;
   
@@ -133,15 +135,26 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     /// @param _listingId The ID of the listing
     /// @dev Only the buyer or seller can dispute the listing
     /// @dev Listing is disputable by buyer or seller after delivery is started by the seller
-    function disputeListing(bytes32 _listingId) external nonReentrant {
+    function disputeListing(bytes32 _listingId) external payable nonReentrant {
         Listing storage listing = s_listings[_listingId];
+        IDebazaarArbiter arbiterContract = IDebazaarArbiter(s_arbiter);
+        address entropyV2 = arbiterContract.getEntropyV2();
+        uint128 fee = IEntropyV2(entropyV2).getFeeV2();
+
         // Checks
         if (listing.escrowType != EscrowType.DISPUTABLE) revert InvalidEscrowType();
         if (listing.state != State.Delivered) revert InvalidState();
         if (msg.sender != listing.buyer && msg.sender != listing.seller) revert NotBuyerOrSeller();
+        if (msg.value < fee) revert InsufficientFeeSentForRandomNumberGeneration(fee, msg.value);
+
         // Effects
         listing.state = State.Disputed;
         // Interactions
+        arbiterContract.addListingToQueue{value: fee}(_listingId); 
+        if (msg.value - fee > 0) {
+            (bool success,) = payable(msg.sender).call{value: msg.value - fee}("");
+            if (!success) revert FailedToRefund();
+        }
         emit DeBazaar__Disputed(_listingId, msg.sender);
     }
 
@@ -187,6 +200,11 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
             emit DeBazaar__Released(_listingId);
         }
     } 
+    // ========= Setter Functions =========
+    function setArbiter(address _arbiter) external onlyOwner {
+        if (_arbiter == address(0)) revert ZeroAddress();
+        s_arbiter = _arbiter;
+    }
 
     // ========= Getter Functions =========
     

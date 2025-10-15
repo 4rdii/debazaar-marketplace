@@ -33,6 +33,7 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
     event ListingsAddedToQueue(bytes32 indexed listings);
     event ListingsResolved(bytes32[] indexed listings);
     event RandomnessReceived(bytes32 indexed listingId, bytes32 indexed randomness);
+    event RandomnessRequested(bytes32 indexed listingId, uint64 indexed sequenceNumber);
 
     // ========= State Variables =========
 
@@ -67,12 +68,12 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
 
     // ========= External Functions =========
 
-    function addListingToQueue(bytes32 _listingId, address _refundTo) external payable onlyRole(ESCROW_ROLE) {
+    function addListingToQueue(bytes32 _listingId) external payable onlyRole(ESCROW_ROLE) {
         bool result = s_listingsQueue.add(_listingId);
         if (result) {
             // Next steps:
             // Request a random number from pyth entropy service
-            _requestRandomNumber(_refundTo, _listingId);
+            _requestRandomNumber(_listingId);
             // receive the random number in the callback
             // select the arbiters based on the random number
             emit ListingsAddedToQueue(_listingId);
@@ -130,15 +131,10 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
     }
 
     // ========= Internal Functions =========
-    function _requestRandomNumber(address _refundTo, bytes32 _listingId) internal {
-        uint256 fee = s_entropyV2.getFeeV2();
-        if (msg.value < fee) revert InsufficientFeeSentForRandomNumberGeneration();
-        uint64 sequenceNumber = s_entropyV2.requestV2{value: fee}();
+    function _requestRandomNumber(bytes32 _listingId) internal {
+        uint64 sequenceNumber = s_entropyV2.requestV2{value: msg.value}();
         s_sequenceNumberToListingId[sequenceNumber] = _listingId;
-        if (msg.value - fee > 0) {
-            (bool success,) = payable(_refundTo).call{value: msg.value - fee}("");
-            if (!success) revert FailedToRefund();
-        }
+        emit RandomnessRequested(_listingId, sequenceNumber);
     }
 
     function entropyCallback(uint64 sequenceNumber, address provider, bytes32 randomNumber) internal override {

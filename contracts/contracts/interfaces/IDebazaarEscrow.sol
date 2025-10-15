@@ -54,6 +54,8 @@ interface IDebazaarEscrow {
     error InvalidDeadlineForRefund();   
     error NotBuyerOrSeller();
     error NotSeller();
+    error InsufficientFeeSentForRandomNumberGeneration(uint128 fee, uint256 msgValue);
+    error FailedToRefund();
 
     // ========= Functions =========
 }
