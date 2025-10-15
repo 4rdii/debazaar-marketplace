@@ -9,57 +9,21 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IEntropyConsumer} from "@pythnetwork/entropy-sdk-solidity/IEntropyConsumer.sol";
 import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
+import {IDebazaarArbiter} from "./interfaces/IDebazaarArbiter.sol";
 import {IDebazaarEscrow} from "./interfaces/IDebazaarEscrow.sol";
-contract DebazaarArbiter is ReentrancyGuard, IEntropyConsumer, Ownable {
+
+contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer, Ownable {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    uint256 public constant ARBITERS_PER_LISTING = 3;
-    // ========= Errors =========
-
-    error ZeroAddress();
-    error ListingsAlreadyInQueue(bytes32 listing);
-    error UnAuthorized();
-    error RandomnessNotReceived();
-    error InvalidState();
-
-    // ========= Events =========
-
-    event ArbiterAdded(address indexed arbiter);
-    event ArbiterRemoved(address indexed arbiter);
-    event ListingsAddedToQueue(bytes32 indexed listings);
-    event ListingsResolved(bytes32 indexed listings, bool indexed toBuyer);
-    event RandomnessReceived(bytes32 indexed listingId, bytes32 indexed randomness);
-    event RandomnessRequested(bytes32 indexed listingId, uint64 indexed sequenceNumber);
-    event VoteCast(bytes32 indexed listingId, address indexed voter, Vote indexed vote);
-    event DebazaarEscrowSet(address indexed debazaarEscrow);
-
     // ========= State Variables =========
+    uint256 public constant ARBITERS_PER_LISTING = 3;
 
     address private s_debazaarEscrow;
     IEntropyV2 private s_entropyV2;
     EnumerableSet.Bytes32Set private s_listingsQueue;
     EnumerableSet.AddressSet private s_arbitrators;
-
-    enum Vote {
-        NOT_VOTED,
-        FOR_BUYER,
-        FOR_SELLER
-    }
-
-    enum State {
-        Disputed,
-        Resolved
-    }
-
-    struct DisputedListing {
-        bytes32 randomness;
-        uint64 sequenceNumber;
-        EnumerableSet.AddressSet arbiters;
-        mapping(address => Vote) votes;
-        State state;
-    }
 
     //listingId => DisputedListing
     mapping(bytes32 => DisputedListing) private s_disputedListings;
@@ -119,16 +83,14 @@ contract DebazaarArbiter is ReentrancyGuard, IEntropyConsumer, Ownable {
             emit ListingsResolved(_listingId, false);
         }
     }
+
     function setDebazaarEscrow(address _debazaarEscrow) external onlyOwner {
         if (_debazaarEscrow == address(0)) revert ZeroAddress();
         s_debazaarEscrow = _debazaarEscrow;
         emit DebazaarEscrowSet(_debazaarEscrow);
     }
 
-    function addOrRemoveArbiters(address[] calldata _arbiter, bool[] calldata _add)
-        external
-        onlyOwner
-    {
+    function addOrRemoveArbiters(address[] calldata _arbiter, bool[] calldata _add) external onlyOwner {
         for (uint256 i = 0; i < _arbiter.length; i++) {
             if (_add[i]) {
                 bool result = s_arbitrators.add(_arbiter[i]);
@@ -190,7 +152,11 @@ contract DebazaarArbiter is ReentrancyGuard, IEntropyConsumer, Ownable {
         return address(s_entropyV2);
     }
 
-    function _selectArbiters(bytes32 _randomness, address[] memory _arbitrators) internal pure returns (address[] memory selectedArbiters) {
+    function _selectArbiters(bytes32 _randomness, address[] memory _arbitrators)
+        internal
+        pure
+        returns (address[] memory selectedArbiters)
+    {
         uint256 n = _arbitrators.length;
         selectedArbiters = new address[](ARBITERS_PER_LISTING);
 

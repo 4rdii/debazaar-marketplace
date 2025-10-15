@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IDebazaarEscrow {
@@ -13,6 +14,7 @@ interface IDebazaarEscrow {
         Refunded, // funds have been refunded to the buyer
         Disputed, // in dispution phase, only for disputable escrow type
         Canceled // listing has been canceled
+
     }
 
     enum EscrowType {
@@ -33,7 +35,15 @@ interface IDebazaarEscrow {
         EscrowType escrowType;
     }
     // ========= Events =========
-    event DeBazaar__ListingCreated(bytes32 indexed listingId, address indexed seller, address indexed token, uint256 amount, uint64 expiration, EscrowType escrowType);
+
+    event DeBazaar__ListingCreated(
+        bytes32 indexed listingId,
+        address indexed seller,
+        address indexed token,
+        uint256 amount,
+        uint64 expiration,
+        EscrowType escrowType
+    );
     event DeBazaar__ListingFilled(bytes32 indexed listingId, address indexed buyer, uint64 deadline);
     event DeBazaar__ListingCancelled(address indexed sender, bytes32 indexed listingId);
     event DeBazaar__ListingReset(bytes32 indexed listingId);
@@ -43,6 +53,7 @@ interface IDebazaarEscrow {
     event DeBazaar__Delivered(bytes32 indexed listingId);
     event DeBazaar__Disputed(bytes32 indexed listingId, address indexed sender);
     // ========= Errors =========
+
     error ZeroAddress();
     error InvalidDeadline();
     error ZeroAmount();
@@ -51,7 +62,7 @@ interface IDebazaarEscrow {
     error InvalidState();
     error InvalidAmount();
     error ListingExpired();
-    error InvalidDeadlineForRefund();   
+    error InvalidDeadlineForRefund();
     error NotBuyerOrSeller();
     error NotSeller();
     error InsufficientFeeSentForRandomNumberGeneration(uint128 fee, uint256 msgValue);

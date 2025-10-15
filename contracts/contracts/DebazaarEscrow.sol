@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable2Step,Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -14,13 +14,14 @@ import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
 /// @notice This contract is used to escrow funds for the Debazaar Marketplace
 contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
     uint64 public constant MIN_EXPIRATION = 1 hours;
     uint256 public constant BASE_BASIS_POINTS = 10000;
 
     uint256 private s_feeBasisPoints;
     address private s_arbiter;
     mapping(bytes32 => Listing) private s_listings;
-  
+
     constructor(address _owner) Ownable(_owner) {}
 
     // ========= External Functions =========
@@ -61,11 +62,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     /// @notice Fills a listing for the buyer
     /// @param _listingId The ID of the listing
     /// @param _deadline The deadline of the listing, after which the buyer can be refunded
-    function fillListing(
-        bytes32 _listingId,
-        uint64 _deadline
-    )external nonReentrant {
-
+    function fillListing(bytes32 _listingId, uint64 _deadline) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
         // Checks
         if (listing.state != State.Open) revert InvalidState();
@@ -79,7 +76,6 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         listing.token.safeTransferFrom(msg.sender, address(this), listing.amount);
         emit DeBazaar__ListingFilled(_listingId, msg.sender, _deadline);
     }
-
 
     /// @notice Cancels a listing
     /// @param _listingId The ID of the listing
@@ -110,7 +106,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
 
     /// @notice Delivers a disputable listing
     /// @param _listingId The ID of the listing
-    /// @dev the seller marks the listing as delivered, when he has delivered the listing to the buyer 
+    /// @dev the seller marks the listing as delivered, when he has delivered the listing to the buyer
     function deliverDisputableListing(bytes32 _listingId) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
         // Checks
@@ -124,7 +120,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     }
 
     function deliverApiApprovalListing(bytes32 _listingId) external nonReentrant {
-        // not implemented yet      
+        // not implemented yet
     }
 
     function deliverOnchainApprovalListing(bytes32 _listingId) external nonReentrant {
@@ -150,7 +146,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         // Effects
         listing.state = State.Disputed;
         // Interactions
-        arbiterContract.addListingToQueue{value: fee}(_listingId); 
+        arbiterContract.addListingToQueue{value: fee}(_listingId);
         if (msg.value - fee > 0) {
             (bool success,) = payable(msg.sender).call{value: msg.value - fee}("");
             if (!success) revert FailedToRefund();
@@ -158,11 +154,11 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         emit DeBazaar__Disputed(_listingId, msg.sender);
     }
 
-     /**
+    /**
      * @notice Resolves the listing in favor of the buyer or seller.
      * @dev This function is only callable by the arbiter in case of a dispute
      *      or by the escrow itself in case of a fullfillment event.
-     *      the buyer himself can call this in disputable escrow type, 
+     *      the buyer himself can call this in disputable escrow type,
      *      if the item's delivery was satisfactory.
      * @param _listingId The id of the escrow.
      * @param _toBuyer The boolean to determine if the listing is resolved in favor of the buyer.
@@ -172,10 +168,9 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         // Checks
         if (listing.escrowType == EscrowType.DISPUTABLE) {
             if (listing.state == State.Disputed) {
-                require(msg.sender == s_arbiter , "Only the arbiter can resolve a disputed listing");
+                require(msg.sender == s_arbiter, "Only the arbiter can resolve a disputed listing");
                 emit DeBazaar__Resolved(_listingId, _toBuyer ? listing.buyer : listing.seller);
-            }
-            else if (listing.state == State.Delivered) {
+            } else if (listing.state == State.Delivered) {
                 require(msg.sender == listing.buyer, "Only the buyer can resolve a delivered listing");
                 _toBuyer = false;
             } else {
@@ -183,14 +178,15 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
             }
         } else if (listing.escrowType == EscrowType.API_APPROVAL) {
             require(
-                msg.sender == address(this) && listing.state == State.Delivered, "Only the escrow itself can resolve this listing"
+                msg.sender == address(this) && listing.state == State.Delivered,
+                "Only the escrow itself can resolve this listing"
             );
         } else if (listing.escrowType == EscrowType.ONCHAIN_APPROVAL) {
             require(msg.sender == address(this), "Only the escrow itself can resolve this listing");
         }
         // Effects
-        _toBuyer? listing.state = State.Refunded : listing.state = State.Released;
-        
+        _toBuyer ? listing.state = State.Refunded : listing.state = State.Released;
+
         // Interactions
         if (_toBuyer) {
             _transferWithFee(address(listing.token), listing.buyer, listing.amount);
@@ -199,15 +195,16 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
             _transferWithFee(address(listing.token), listing.seller, listing.amount);
             emit DeBazaar__Released(_listingId);
         }
-    } 
+    }
     // ========= Setter Functions =========
+
     function setArbiter(address _arbiter) external onlyOwner {
         if (_arbiter == address(0)) revert ZeroAddress();
         s_arbiter = _arbiter;
     }
 
     // ========= Getter Functions =========
-    
+
     /// @notice Returns the listing details
     /// @param _listingId The ID of the listing
     /// @return The listing details
@@ -223,7 +220,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         return s_feeBasisPoints;
     }
 
-    // ========= Internal Functions ========= 
+    // ========= Internal Functions =========
     /// @dev Calculates the protocol fee for a given amount.
     /// @param amount The gross amount.
     /// @return The fee portion.
