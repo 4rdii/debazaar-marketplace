@@ -58,4 +58,5 @@ interface IDebazaarEscrow {
     error FailedToRefund();
 
     // ========= Functions =========
+    function resolveListing(bytes32 _listingId, bool _toBuyer) external;
 }

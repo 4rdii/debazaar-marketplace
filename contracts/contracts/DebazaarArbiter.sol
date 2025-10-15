@@ -9,7 +9,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IEntropyConsumer} from "@pythnetwork/entropy-sdk-solidity/IEntropyConsumer.sol";
 import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
-
+import {IDebazaarEscrow} from "./interfaces/IDebazaarEscrow.sol";
 contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -25,7 +25,9 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
     error InsufficientFeeSentForRandomNumberGeneration();
     error FailedToRefund();
     error UnAuthorized();
+    error RandomnessNotReceived();
     error InvalidSequenceNumber();
+    error InvalidState();
     // ========= Events =========
 
     event ArbiterAdded(address indexed arbiter);
@@ -34,7 +36,7 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
     event ListingsResolved(bytes32[] indexed listings);
     event RandomnessReceived(bytes32 indexed listingId, bytes32 indexed randomness);
     event RandomnessRequested(bytes32 indexed listingId, uint64 indexed sequenceNumber);
-
+    event VoteCast(bytes32 indexed listingId, address indexed voter, Vote indexed vote);
     // ========= State Variables =========
 
     address private s_debazaarEscrow;
@@ -42,12 +44,25 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
     EnumerableSet.Bytes32Set private s_listingsQueue;
     EnumerableSet.AddressSet private s_arbitrators;
 
+    enum Vote {
+        NOT_VOTED,
+        FOR_BUYER,
+        FOR_SELLER
+    }
+    
+    enum State {
+        Disputed,
+        Resolved
+    }
+
     struct DisputedListing {
-        bytes32 listingId;
         bytes32 randomness;
         uint64 sequenceNumber;
-        address[] arbiters;
+        EnumerableSet.AddressSet arbiters;
+        mapping(address => Vote) votes;
+        State state;
     }
+
     //listingId => DisputedListing
     mapping(bytes32 => DisputedListing) private s_disputedListings;
     //sequenceNumber => listingId
@@ -71,17 +86,40 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
     function addListingToQueue(bytes32 _listingId) external payable onlyRole(ESCROW_ROLE) {
         bool result = s_listingsQueue.add(_listingId);
         if (result) {
-            // Next steps:
-            // Request a random number from pyth entropy service
             _requestRandomNumber(_listingId);
-            // receive the random number in the callback
-            // select the arbiters based on the random number
+            s_disputedListings[_listingId].state = State.Disputed;
             emit ListingsAddedToQueue(_listingId);
         } else {
             revert ListingsAlreadyInQueue(_listingId);
         }
     }
 
+    function resolveListing(bytes32 _listingId, bool _toBuyer) external nonReentrant {
+        DisputedListing storage disputedListing = s_disputedListings[_listingId];
+        // Checks
+        if (disputedListing.randomness == bytes32(0)) revert RandomnessNotReceived();
+        if (!disputedListing.arbiters.contains(msg.sender)) revert UnAuthorized();
+        if (disputedListing.state != State.Disputed) revert InvalidState();
+        disputedListing.votes[msg.sender] = _toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER;
+        uint256 votesForBuyer = 0;
+        uint256 votesForSeller = 0;
+        for (uint256 i = 0; i < disputedListing.arbiters.length(); i++) {
+            Vote vote = disputedListing.votes[disputedListing.arbiters.at(i)];
+            if (vote == Vote.FOR_BUYER) {
+                votesForBuyer++;
+            } else if (vote == Vote.FOR_SELLER) {
+                votesForSeller++;
+            }
+        }
+        emit VoteCast(_listingId, msg.sender, _toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER);
+        if (votesForBuyer >= ARBITERS_PER_LISTING / 2 + 1) {
+            disputedListing.state = State.Resolved;
+            IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, true);
+        } else if (votesForSeller >= ARBITERS_PER_LISTING / 2 + 1) {
+            disputedListing.state = State.Resolved;
+            IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, false);
+        }
+    }
     function setDebazaarEscrow(address _debazaarEscrow) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_debazaarEscrow == address(0)) revert ZeroAddress();
         s_debazaarEscrow = _debazaarEscrow;
@@ -123,7 +161,7 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
     }
 
     function getSelectedArbitratorsForListing(bytes32 _listingId) external view returns (address[] memory) {
-        return s_disputedListings[_listingId].arbiters;
+        return s_disputedListings[_listingId].arbiters.values();
     }
 
     function getEntropyV2() external view returns (address) {
@@ -143,7 +181,10 @@ contract DebazaarArbiter is AccessControl, ReentrancyGuard, IEntropyConsumer {
 
         disputedListing.randomness = randomNumber;
         disputedListing.sequenceNumber = sequenceNumber;
-        disputedListing.arbiters = _selectArbiters(randomNumber, disputedListing.arbiters);
+        address[] memory arbiters = _selectArbiters(randomNumber, disputedListing.arbiters.values());
+        for (uint256 i = 0; i < arbiters.length; i++) {
+            disputedListing.arbiters.add(arbiters[i]);
+        }
 
         emit RandomnessReceived(listingId, randomNumber);
     }
