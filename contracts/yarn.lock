@@ -1107,6 +1107,11 @@
   resolved "https://registry.yarnpkg.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"
   integrity sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==
 
+"@pythnetwork/entropy-sdk-solidity@^2.0.0":
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/@pythnetwork/entropy-sdk-solidity/-/entropy-sdk-solidity-2.0.0.tgz#2f819b6626d3cc91ac2b22711a7d9d99f1edf36a"
+  integrity sha512-VgxSax4e58skgffYrHkd6V0dSR8jxzpoY2ugLJJTxavyBYfPncrirwg+WzuknUa0bFmeCE3G335nWSZbJDOjVQ==
+
 "@scroll-tech/contracts@2.0.0":
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/@scroll-tech/contracts/-/contracts-2.0.0.tgz#1b21b1148372013fec765e396a4fc44b91384db7"

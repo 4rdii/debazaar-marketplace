@@ -5,7 +5,7 @@ import {Ownable2Step,Ownable} from "@openzeppelin/contracts/access/Ownable2Step.
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IDebazaarEscrow} from "./IDebazaarEscrow.sol";
+import {IDebazaarEscrow} from "./interfaces/IDebazaarEscrow.sol";
 
 /// @title Debazaar Escrow
 /// @author 4rdii
@@ -146,31 +146,34 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     }
 
      /**
-     * @notice Resolves the deal in favor of the buyer or seller.
+     * @notice Resolves the listing in favor of the buyer or seller.
      * @dev This function is only callable by the arbiter in case of a dispute
      *      or by the escrow itself in case of a fullfillment event.
+     *      the buyer himself can call this in disputable escrow type, 
+     *      if the item's delivery was satisfactory.
      * @param _listingId The id of the escrow.
+     * @param _toBuyer The boolean to determine if the listing is resolved in favor of the buyer.
      */
-    function resolveDeal(bytes32 _listingId, bool _toBuyer) external nonReentrant {
+    function resolveListing(bytes32 _listingId, bool _toBuyer) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
         // Checks
         if (listing.escrowType == EscrowType.DISPUTABLE) {
             if (listing.state == State.Disputed) {
-                require(msg.sender == s_arbiter , "Only the arbiter can resolve a disputed deal");
+                require(msg.sender == s_arbiter , "Only the arbiter can resolve a disputed listing");
                 emit DeBazaar__Resolved(_listingId, _toBuyer ? listing.buyer : listing.seller);
             }
             else if (listing.state == State.Delivered) {
-                require(msg.sender == listing.buyer, "Only the buyer can resolve a delivered deal");
+                require(msg.sender == listing.buyer, "Only the buyer can resolve a delivered listing");
                 _toBuyer = false;
             } else {
                 revert InvalidState();
             }
         } else if (listing.escrowType == EscrowType.API_APPROVAL) {
             require(
-                msg.sender == address(this) && listing.state == State.Delivered, "Only the escrow itself can resolve this deal"
+                msg.sender == address(this) && listing.state == State.Delivered, "Only the escrow itself can resolve this listing"
             );
         } else if (listing.escrowType == EscrowType.ONCHAIN_APPROVAL) {
-            require(msg.sender == address(this), "Only the escrow itself can resolve this deal");
+            require(msg.sender == address(this), "Only the escrow itself can resolve this listing");
         }
         // Effects
         _toBuyer? listing.state = State.Refunded : listing.state = State.Released;
