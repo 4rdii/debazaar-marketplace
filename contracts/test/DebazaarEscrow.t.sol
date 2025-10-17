@@ -8,7 +8,7 @@ contract DebazaarEscrowTest is TestBase {
     
     // Event declarations for testing
     event DeBazaar__ListingCreated(bytes32 indexed listingId, address indexed seller, address indexed token, uint256 amount, uint64 expiration, uint8 escrowType);
-    event DeBazaar__ListingFilled(bytes32 indexed listingId, address indexed buyer, uint64 indexed deadline);
+    event DeBazaar__ListingFilled(bytes32 indexed listingId, address indexed buyer, uint64 deadline);
     event DeBazaar__ListingCancelled(address indexed canceller, bytes32 indexed listingId);
     event DeBazaar__Delivered(bytes32 indexed listingId);
     event DeBazaar__Disputed(bytes32 indexed listingId, address indexed disputer);
@@ -185,7 +185,7 @@ contract DebazaarEscrowTest is TestBase {
         emit DeBazaar__ListingCancelled(seller, listingId);
         
         vm.prank(seller);
-        escrow.cancelListing(listingId);
+        escrow.cancelListingBySeller(listingId);
         
         (IDebazaarEscrow.Listing memory listing) = escrow.getListing(listingId);
         assertEq(uint8(listing.state), 6, "State should be Canceled");
@@ -196,13 +196,13 @@ contract DebazaarEscrowTest is TestBase {
         fillTestListing(listingId);
         
         // Advance time past deadline
-        advanceTime(TEST_DEADLINE + 1);
+        advanceTime(TEST_EXPIRATION + 1);
         
         vm.expectEmit(true, true, false, true);
         emit DeBazaar__ListingCancelled(buyer, listingId);
         
         vm.prank(buyer);
-        escrow.cancelListing(listingId);
+        escrow.cancelListingByBuyer(listingId);
         
         (IDebazaarEscrow.Listing memory listing) = escrow.getListing(listingId);
         assertEq(uint8(listing.state), 6, "State should be Canceled");
@@ -214,8 +214,8 @@ contract DebazaarEscrowTest is TestBase {
         address unauthorized = makeAddr("unauthorized");
         
         vm.prank(unauthorized);
-        vm.expectRevert(IDebazaarEscrow.NotBuyerOrSeller.selector);
-        escrow.cancelListing(listingId);
+        vm.expectRevert(IDebazaarEscrow.NotBuyer.selector);
+        escrow.cancelListingByBuyer(listingId);
     }
     
     function testDeliverDisputableListing() public {
@@ -255,9 +255,10 @@ contract DebazaarEscrowTest is TestBase {
         deliverTestListing(listingId);
         
         uint128 insufficientFee = 0.0001 ether;
-        
+
+        vm.deal(buyer, insufficientFee);
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(IDebazaarEscrow.InsufficientFeeSentForRandomNumberGeneration.selector, getEntropyFee(), insufficientFee));
+        vm.expectRevert(abi.encodeWithSelector(IDebazaarEscrow.InsufficientFeeSentForRandomNumberGeneration.selector, 0.001 ether, insufficientFee));
         escrow.disputeListing{value: insufficientFee}(listingId);
     }
     

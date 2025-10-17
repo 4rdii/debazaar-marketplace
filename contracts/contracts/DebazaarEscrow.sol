@@ -79,29 +79,38 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
 
     /// @notice Cancels a listing
     /// @param _listingId The ID of the listing
-    /// @dev Only the buyer or seller can cancel the listing, Listing is cancalable by buyer if the seller did not deliver the listing in the deadline
-    /// @dev Listing is cancalable by seller, before the buyer has paid for the listing
-    function cancelListing(bytes32 _listingId) external nonReentrant {
+    /// @dev Only the buyer can cancel the listing, Listing is cancalable by buyer if the seller did not deliver the listing in the deadline
+    function cancelListingByBuyer(bytes32 _listingId) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
         // Checks
-        if (listing.buyer != msg.sender && listing.seller != msg.sender) revert NotBuyerOrSeller();
-        if (listing.expiration <= block.timestamp) revert ListingExpired();
-        if (listing.state != State.Filled && listing.state != State.Open) revert InvalidState();
-        bool needsRefund = listing.state == State.Filled && listing.deadline > block.timestamp;
+        if (listing.buyer != msg.sender) revert NotBuyer();
+        if (listing.state != State.Filled ) revert InvalidState();
+        if (block.timestamp < listing.deadline) revert DeadlineHasNotPassed();
         // Effects
-        listing.state = State.Canceled;
-        if (needsRefund) {
-            listing.token.safeTransfer(listing.buyer, listing.amount);
-            if (block.timestamp > listing.expiration) {
-                listing.state = State.Open;
-                listing.buyer = address(0);
-                listing.deadline = 0;
-                emit DeBazaar__ListingReset(_listingId);
-            }
-        } else {
+        if (block.timestamp < listing.expiration) {
+            listing.state = State.Open;
+            listing.buyer = address(0);
+            listing.deadline = 0;
+            emit DeBazaar__ListingReset(_listingId);
+        }
+        else {
             listing.state = State.Canceled;
             emit DeBazaar__ListingCancelled(msg.sender, _listingId);
         }
+        listing.token.safeTransfer(msg.sender, listing.amount);
+    }
+
+    /// @notice Cancels a listing by the seller
+    /// @param _listingId The ID of the listing
+    /// @dev Only the seller can cancel the listing, Listing is cancalable by seller, before the buyer has paid for the listing
+    function cancelListingBySeller(bytes32 _listingId) external nonReentrant {
+        Listing storage listing = s_listings[_listingId];
+        // Checks
+        if (listing.seller != msg.sender) revert NotSeller();
+        if (listing.state != State.Open) revert InvalidState();
+        // Effects
+        listing.state = State.Canceled;
+        emit DeBazaar__ListingCancelled(msg.sender, _listingId);
     }
 
     /// @notice Delivers a disputable listing

@@ -27,9 +27,10 @@ contract TestBase is Test {
     
     // Test constants
     uint256 public constant TEST_AMOUNT = 100 ether;
-    uint64 public constant TEST_EXPIRATION = 7200; // 2 hours (greater than MIN_EXPIRATION of 1 hour)
-    uint64 public constant TEST_DEADLINE = 10800; // 3 hours
-    
+    uint64 public constant TEST_EXPIRATION = 10800; // 3 hours (greater than MIN_EXPIRATION of 1 hour)
+    uint64 public constant TEST_DEADLINE = 7200; // 2 hours
+    uint256 nonce; // nonce for generating listing id
+
     function setUp() public virtual {
         // Set up test accounts
         owner = address(this);
@@ -68,10 +69,16 @@ contract TestBase is Test {
         // Approve escrow to spend buyer's tokens
         vm.prank(buyer);
         token.approve(address(escrow), TEST_AMOUNT * 10);
+
+        // deal fee to everyon 
+        vm.deal(owner, 1 ether);
+        vm.deal(buyer, 1 ether);
+        vm.deal(seller, 1 ether);
+        vm.deal(address(escrow), 1 ether);
     }
     
-    function generateListingId() internal view returns (bytes32) {
-        return keccak256(abi.encodePacked("listing", block.timestamp, block.number));
+    function generateListingId() internal returns (bytes32) {
+        return keccak256(abi.encodePacked("listing", block.timestamp, block.number, ++nonce));
     }
     
     function getCurrentTime() internal view returns (uint64) {

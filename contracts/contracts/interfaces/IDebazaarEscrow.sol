@@ -65,6 +65,8 @@ interface IDebazaarEscrow {
     error InvalidDeadlineForRefund();
     error NotBuyerOrSeller();
     error NotSeller();
+    error NotBuyer();
+    error DeadlineHasNotPassed();
     error InsufficientFeeSentForRandomNumberGeneration(uint128 fee, uint256 msgValue);
     error FailedToRefund();
 

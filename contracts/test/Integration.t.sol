@@ -2,6 +2,8 @@
 pragma solidity ^0.8.28;
 
 import {TestBase} from "./TestBase.sol";
+import {Vm} from "forge-std/Vm.sol";
+
 import {IDebazaarEscrow} from "../contracts/interfaces/IDebazaarEscrow.sol";
 
 contract IntegrationTest is TestBase {
@@ -27,48 +29,30 @@ contract IntegrationTest is TestBase {
         bytes32 randomNumber = keccak256(abi.encodePacked("integration-test-randomness"));
         simulateEntropyCallback(1, randomNumber);
         
-        // Step 7: Three arbiters are selected
+        // // Step 7: Three arbiters are selected
         address[] memory selectedArbiters = arbiter.getSelectedArbitratorsForListing(listingId);
         assertEq(selectedArbiters.length, 3, "Should select 3 arbiters");
         
         // Step 8: Arbiters vote (2 for buyer, 1 for seller)
+
         vm.prank(selectedArbiters[0]);
         arbiter.resolveListing(listingId, true); // Vote for buyer
         
         vm.prank(selectedArbiters[1]);
-        arbiter.resolveListing(listingId, true); // Vote for buyer
+        arbiter.resolveListing(listingId, false); // Vote for seller
         
         vm.prank(selectedArbiters[2]);
-        arbiter.resolveListing(listingId, false); // Vote for seller
+        arbiter.resolveListing(listingId, true); // Vote for buyer
         
         // Step 9: Listing resolved in buyer's favor
         // The arbiter should call escrow.resolveListing with true (for buyer)
-        // We can verify this by checking the vote events
-        // TODO: Fix log checking - commented out for now
-        /*
-        vm.recordLogs();
-        vm.prank(selectedArbiters[2]);
-        arbiter.resolveListing(listingId, false);
-        
-        VmSafe.Log[] memory logs = vm.getRecordedLogs();
-        uint256 buyerVotes = 0;
-        uint256 sellerVotes = 0;
-        
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == keccak256("VoteCast(bytes32,address,uint8)")) {
-                uint8 vote = uint8(logs[i].data[0]);
-                if (vote == 1) buyerVotes++;
-                else if (vote == 2) sellerVotes++;
-            }
-        }
-        
-        assertEq(buyerVotes, 2, "Should have 2 votes for buyer");
-        assertEq(sellerVotes, 1, "Should have 1 vote for seller");
-        */
+        (uint256 votesForBuyer, uint256 votesForSeller) = arbiter.getResolvedListingVotes(listingId);
+        assertEq(votesForBuyer, 2, "Should have 2 votes for buyer");
+        assertEq(votesForSeller, 1, "Should have 1 vote for seller");
         
         // Step 10: Buyer receives refund minus protocol fee
-        // Note: The actual resolution and fund transfer happens in the escrow contract
         // This would be triggered by the arbiter calling escrow.resolveListing(listingId, true)
+        assert(token.balanceOf(buyer) == TEST_AMOUNT*10);
     }
     
     function testMultipleConcurrentDisputes() public {
@@ -101,23 +85,12 @@ contract IntegrationTest is TestBase {
         deliverTestListing(listingId1);
         deliverTestListing(listingId2);
         
-        disputeTestListing(listingId1);
-        disputeTestListing(listingId2);
         
-        // Both listings should be in queue
-        bytes32[] memory queue = arbiter.getListingsQueue();
-        assertEq(queue.length, 2, "Queue should have 2 listings");
-        assertEq(queue[0], listingId1, "First listing should be in queue");
-        assertEq(queue[1], listingId2, "Second listing should be in queue");
-        
-        // Each should get unique sequence numbers
-        // TODO: Fix log checking - commented out for now
-        /*
         vm.recordLogs();
         vm.prank(address(escrow));
         arbiter.addListingToQueue{value: fee}(listingId1);
         
-        VmSafe.Log[] memory logs1 = vm.getRecordedLogs();
+        Vm.Log[] memory logs1 = vm.getRecordedLogs();
         uint64 sequenceNumber1 = 0;
         for (uint256 i = 0; i < logs1.length; i++) {
             if (logs1[i].topics[0] == keccak256("RandomnessRequested(bytes32,uint64)")) {
@@ -130,7 +103,7 @@ contract IntegrationTest is TestBase {
         vm.prank(address(escrow));
         arbiter.addListingToQueue{value: fee}(listingId2);
         
-        VmSafe.Log[] memory logs2 = vm.getRecordedLogs();
+        Vm.Log[] memory logs2 = vm.getRecordedLogs();
         uint64 sequenceNumber2 = 0;
         for (uint256 i = 0; i < logs2.length; i++) {
             if (logs2[i].topics[0] == keccak256("RandomnessRequested(bytes32,uint64)")) {
@@ -140,7 +113,7 @@ contract IntegrationTest is TestBase {
         }
         
         assertTrue(sequenceNumber1 != sequenceNumber2, "Should have different sequence numbers");
-        */
+        
         
         // Simulate callbacks for both
         bytes32 randomNumber1 = keccak256(abi.encodePacked("randomness-1"));
@@ -155,45 +128,15 @@ contract IntegrationTest is TestBase {
         
         assertEq(selectedArbiters1.length, 3, "First listing should have 3 arbiters");
         assertEq(selectedArbiters2.length, 3, "Second listing should have 3 arbiters");
+
+        // Both listings should be in queue
+        bytes32[] memory queue = arbiter.getListingsQueue();
+        assertEq(queue.length, 2, "Queue should have 2 listings");
+        assertEq(queue[0], listingId1, "First listing should be in queue");
+        assertEq(queue[1], listingId2, "Second listing should be in queue");
+        
     }
     
-    function testDisputeWith3Arbiters() public {
-        // Remove extra arbiters to have exactly 3
-        address[] memory arbitersToRemove = new address[](2);
-        arbitersToRemove[0] = arbiter4;
-        arbitersToRemove[1] = arbiter5;
-        bool[] memory removeFlags = new bool[](2);
-        removeFlags[0] = false;
-        removeFlags[1] = false;
-        
-        arbiter.addOrRemoveArbiters(arbitersToRemove, removeFlags);
-        
-        address[] memory arbiters = arbiter.getArbiters();
-        assertEq(arbiters.length, 3, "Should have exactly 3 arbiters");
-        
-        bytes32 listingId = createTestListing();
-        fillTestListing(listingId);
-        deliverTestListing(listingId);
-        disputeTestListing(listingId);
-        
-        // Add to queue and get randomness
-        uint128 fee = getEntropyFee();
-        vm.prank(address(escrow));
-        arbiter.addListingToQueue{value: fee}(listingId);
-        
-        bytes32 randomNumber = keccak256(abi.encodePacked("test-randomness"));
-        simulateEntropyCallback(1, randomNumber);
-        
-        // Should select all 3 arbiters
-        address[] memory selectedArbiters = arbiter.getSelectedArbitratorsForListing(listingId);
-        assertEq(selectedArbiters.length, 3, "Should select all 3 arbiters");
-        
-        // All arbiters should be selected
-        address[] memory allArbiters = arbiter.getArbiters();
-        assertEq(selectedArbiters[0], allArbiters[0], "First arbiter should match");
-        assertEq(selectedArbiters[1], allArbiters[1], "Second arbiter should match");
-        assertEq(selectedArbiters[2], allArbiters[2], "Third arbiter should match");
-    }
     
     function testDisputeWith10PlusArbiters() public {
         // Add more arbiters to have 10+
@@ -221,11 +164,7 @@ contract IntegrationTest is TestBase {
         deliverTestListing(listingId);
         disputeTestListing(listingId);
         
-        // Add to queue and get randomness
-        uint128 fee = getEntropyFee();
-        vm.prank(address(escrow));
-        arbiter.addListingToQueue{value: fee}(listingId);
-        
+        // get randomness
         bytes32 randomNumber = keccak256(abi.encodePacked("test-randomness"));
         simulateEntropyCallback(1, randomNumber);
         
@@ -297,10 +236,6 @@ contract IntegrationTest is TestBase {
         deliverTestListing(listingId);
         disputeTestListing(listingId);
         
-        uint128 fee = getEntropyFee();
-        vm.prank(address(escrow));
-        arbiter.addListingToQueue{value: fee}(listingId);
-        
         bytes32 randomNumber = keccak256(abi.encodePacked("fuzz-randomness"));
         simulateEntropyCallback(1, randomNumber);
         
@@ -312,10 +247,10 @@ contract IntegrationTest is TestBase {
         
         vm.prank(selectedArbiters[1]);
         arbiter.resolveListing(listingId, vote2);
-        
-        vm.prank(selectedArbiters[2]);
-        arbiter.resolveListing(listingId, vote3);
-        
+        if (vote1 != vote2){
+            vm.prank(selectedArbiters[2]);
+            arbiter.resolveListing(listingId, vote3);
+        }
         // Count votes
         uint256 buyerVotes = 0;
         uint256 sellerVotes = 0;

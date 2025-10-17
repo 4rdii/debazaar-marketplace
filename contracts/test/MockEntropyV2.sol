@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
+import {IEntropyConsumer} from "@pythnetwork/entropy-sdk-solidity/IEntropyConsumer.sol";
 
 contract MockEntropyV2 {
     uint128 public constant FEE = 0.001 ether;
@@ -33,15 +34,17 @@ contract MockEntropyV2 {
         s_randomNumbers[sequenceNumber] = randomNumber;
         
         // Call the consumer's entropyCallback function
-        (bool success,) = consumer.call(
-            abi.encodeWithSignature(
-                "entropyCallback(uint64,address,bytes32)",
-                sequenceNumber,
-                address(this),
-                randomNumber
-            )
-        );
-        require(success, "Callback failed");
+        // (bool success,) = consumer.call(
+        //     abi.encodeWithSignature(
+        //         "_entropyCallback(uint64,address,bytes32)",
+        //         sequenceNumber,
+        //         address(this),
+        //         randomNumber
+        //     )
+        // );
+
+        // require(success, "Callback failed");
+        IEntropyConsumer(consumer)._entropyCallback(sequenceNumber, address(this), randomNumber);
     }
     
     // Test helper to get stored random number

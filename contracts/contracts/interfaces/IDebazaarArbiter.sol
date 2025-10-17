@@ -23,6 +23,8 @@ interface IDebazaarArbiter {
         uint64 sequenceNumber;
         EnumerableSet.AddressSet arbiters;
         mapping(address => Vote) votes;
+        uint256 votesForBuyer;
+        uint256 votesForSeller;
         State state;
     }
     // ========= Errors =========

@@ -105,6 +105,7 @@ contract DebazaarArbiterTest is TestBase {
         vm.expectEmit(true, false, false, false);
         emit ListingsAddedToQueue(listingId);
         
+        vm.deal(address(escrow), fee);
         vm.prank(address(escrow));
         arbiter.addListingToQueue{value: fee}(listingId);
         
@@ -120,6 +121,7 @@ contract DebazaarArbiterTest is TestBase {
         vm.expectEmit(true, true, false, false);
         emit RandomnessRequested(listingId, 1); // First sequence number
         
+        vm.deal(address(escrow), fee);
         vm.prank(address(escrow));
         arbiter.addListingToQueue{value: fee}(listingId);
     }
@@ -128,9 +130,11 @@ contract DebazaarArbiterTest is TestBase {
         bytes32 listingId = generateListingId();
         uint128 fee = getEntropyFee();
         
-        vm.startPrank(address(escrow));
+        vm.deal(address(escrow), 2*fee);
+        vm.prank(address(escrow));
         arbiter.addListingToQueue{value: fee}(listingId);
         
+        vm.prank(address(escrow));
         vm.expectRevert(abi.encodeWithSelector(IDebazaarArbiter.ListingsAlreadyInQueue.selector, listingId));
         arbiter.addListingToQueue{value: fee}(listingId);
         vm.stopPrank();
@@ -139,7 +143,7 @@ contract DebazaarArbiterTest is TestBase {
     function testAddListingToQueueRevertsOnUnauthorized() public {
         bytes32 listingId = generateListingId();
         uint128 fee = getEntropyFee();
-        
+        vm.deal(seller, fee);
         vm.prank(seller);
         vm.expectRevert();
         arbiter.addListingToQueue{value: fee}(listingId);
@@ -149,6 +153,7 @@ contract DebazaarArbiterTest is TestBase {
         bytes32 listingId = generateListingId();
         uint128 fee = getEntropyFee();
         
+        vm.deal(address(escrow), fee);
         vm.prank(address(escrow));
         arbiter.addListingToQueue{value: fee}(listingId);
         
@@ -172,6 +177,7 @@ contract DebazaarArbiterTest is TestBase {
         bytes32 listingId = generateListingId();
         uint128 fee = getEntropyFee();
         
+        vm.deal(address(escrow), fee);
         vm.prank(address(escrow));
         arbiter.addListingToQueue{value: fee}(listingId);
         
@@ -199,7 +205,8 @@ contract DebazaarArbiterTest is TestBase {
     function testResolveListingRevertsOnUnauthorized() public {
         bytes32 listingId = generateListingId();
         uint128 fee = getEntropyFee();
-        
+
+        vm.deal(address(escrow), fee);
         vm.prank(address(escrow));
         arbiter.addListingToQueue{value: fee}(listingId);
         
@@ -219,7 +226,7 @@ contract DebazaarArbiterTest is TestBase {
         vm.deal(address(escrow), fee);
         vm.prank(address(escrow));
         arbiter.addListingToQueue{value: fee}(listingId);
-        
+
         bytes32 randomNumber = keccak256(abi.encodePacked("test-randomness"));
         simulateEntropyCallback(1, randomNumber);
         

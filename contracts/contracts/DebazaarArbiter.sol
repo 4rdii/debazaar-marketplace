@@ -72,6 +72,8 @@ contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer,
                 votesForSeller++;
             }
         }
+        disputedListing.votesForBuyer = votesForBuyer;
+        disputedListing.votesForSeller = votesForSeller;
         emit VoteCast(_listingId, msg.sender, _toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER);
         if (votesForBuyer >= ARBITERS_PER_LISTING / 2 + 1) {
             disputedListing.state = State.Resolved;
@@ -123,6 +125,10 @@ contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer,
         return s_disputedListings[_listingId].arbiters.values();
     }
 
+    function getResolvedListingVotes(bytes32 _listingId) external view returns (uint256, uint256) {
+        return (s_disputedListings[_listingId].votesForBuyer, s_disputedListings[_listingId].votesForSeller);
+    }
+
     function getEntropyV2() external view returns (address) {
         return getEntropy();
     }
@@ -140,7 +146,7 @@ contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer,
 
         disputedListing.randomness = randomNumber;
         disputedListing.sequenceNumber = sequenceNumber;
-        address[] memory arbiters = _selectArbiters(randomNumber, disputedListing.arbiters.values());
+        address[] memory arbiters = _selectArbiters(randomNumber, s_arbitrators.values());
         for (uint256 i = 0; i < arbiters.length; i++) {
             disputedListing.arbiters.add(arbiters[i]);
         }
