@@ -11,7 +11,7 @@ contract DebazaarArbiterTest is TestBase {
     event ArbiterRemoved(address indexed arbiter);
     event ListingsAddedToQueue(bytes32 indexed listingId);
     event RandomnessRequested(bytes32 indexed listingId, uint64 indexed sequenceNumber);
-    event RandomnessReceived(bytes32 indexed listingId, bytes32 indexed randomNumber);
+    event RandomnessReceived(bytes32 indexed listingId, bytes32 indexed randomNumber, address indexed provider);
     event VoteCast(bytes32 indexed listingId, address indexed voter, uint8 indexed vote);
     
     function testDeployWithInitialArbiters() public {
@@ -160,7 +160,7 @@ contract DebazaarArbiterTest is TestBase {
         bytes32 randomNumber = keccak256(abi.encodePacked("test-randomness"));
         
         vm.expectEmit(true, true, false, false);
-        emit RandomnessReceived(listingId, randomNumber);
+        emit RandomnessReceived(listingId, randomNumber, address(entropyV2));
         
         simulateEntropyCallback(1, randomNumber);
         
