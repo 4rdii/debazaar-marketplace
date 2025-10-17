@@ -77,7 +77,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         emit DeBazaar__ListingFilled(_listingId, msg.sender, _deadline);
     }
 
-    /// @notice Cancels a listing
+    /// @notice Cancels a listing By Buyer
     /// @param _listingId The ID of the listing
     /// @dev Only the buyer can cancel the listing, Listing is cancalable by buyer if the seller did not deliver the listing in the deadline
     function cancelListingByBuyer(bytes32 _listingId) external nonReentrant {
@@ -100,7 +100,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         listing.token.safeTransfer(msg.sender, listing.amount);
     }
 
-    /// @notice Cancels a listing by the seller
+    /// @notice Cancels a listing By Seller
     /// @param _listingId The ID of the listing
     /// @dev Only the seller can cancel the listing, Listing is cancalable by seller, before the buyer has paid for the listing
     function cancelListingBySeller(bytes32 _listingId) external nonReentrant {

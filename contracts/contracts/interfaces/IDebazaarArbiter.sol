@@ -34,6 +34,7 @@ interface IDebazaarArbiter {
     error UnAuthorized();
     error RandomnessNotReceived();
     error InvalidState();
+    error AlreadyVoted();
 
     // ========= Events =========
 

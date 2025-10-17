@@ -61,29 +61,27 @@ contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer,
         if (disputedListing.randomness == bytes32(0)) revert RandomnessNotReceived();
         if (!disputedListing.arbiters.contains(msg.sender)) revert UnAuthorized();
         if (disputedListing.state != State.Disputed) revert InvalidState();
+        if (disputedListing.votes[msg.sender] != Vote.NOT_VOTED) revert AlreadyVoted();
+
+        // Effects
         disputedListing.votes[msg.sender] = _toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER;
-        uint256 votesForBuyer = 0;
-        uint256 votesForSeller = 0;
-        for (uint256 i = 0; i < disputedListing.arbiters.length(); i++) {
-            Vote vote = disputedListing.votes[disputedListing.arbiters.at(i)];
-            if (vote == Vote.FOR_BUYER) {
-                votesForBuyer++;
-            } else if (vote == Vote.FOR_SELLER) {
-                votesForSeller++;
-            }
+        if (_toBuyer) {
+            disputedListing.votesForBuyer++;
+        } else {
+            disputedListing.votesForSeller++;
         }
-        disputedListing.votesForBuyer = votesForBuyer;
-        disputedListing.votesForSeller = votesForSeller;
-        emit VoteCast(_listingId, msg.sender, _toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER);
-        if (votesForBuyer >= ARBITERS_PER_LISTING / 2 + 1) {
+        
+        // Interactions
+        if (disputedListing.votesForBuyer >= ARBITERS_PER_LISTING / 2 + 1) {
             disputedListing.state = State.Resolved;
             IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, true);
             emit ListingsResolved(_listingId, true);
-        } else if (votesForSeller >= ARBITERS_PER_LISTING / 2 + 1) {
+        } else if (disputedListing.votesForSeller >= ARBITERS_PER_LISTING / 2 + 1) {
             disputedListing.state = State.Resolved;
             IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, false);
             emit ListingsResolved(_listingId, false);
         }
+        emit VoteCast(_listingId, msg.sender, _toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER);
     }
 
     function setDebazaarEscrow(address _debazaarEscrow) external onlyOwner {
