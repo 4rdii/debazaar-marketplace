@@ -34,6 +34,7 @@ interface IDebazaarEscrow {
         bytes encryptedSecretsUrls;
         string[] args;
         bytes[] bytesArgs;
+        bytes32 requestId;
     }
 
     struct Listing {
@@ -66,7 +67,11 @@ interface IDebazaarEscrow {
     event DeBazaar__Released(bytes32 indexed listingId);
     event DeBazaar__Refunded(bytes32 indexed listingId);
     event DeBazaar__Delivered(bytes32 indexed listingId);
+    event DeBazaar__ApiApprovalRequested(bytes32 indexed listingId, bytes32 requestId);
     event DeBazaar__Disputed(bytes32 indexed listingId, address indexed sender);
+    event DeBazaar__ApiReturnedAnError(bytes32 indexed listingId, bytes err);
+    event DeBazaar__ApiReturnedFalse(bytes32 indexed listingId);
+    event DeBazaar__ApiReturnedEmptyResponse(bytes32 indexed listingId);
     // ========= Errors =========
 
     error ZeroAddress();
@@ -88,6 +93,8 @@ interface IDebazaarEscrow {
     error InvalidExtraData();
     error ApprovalStaticCallFailed();
     error ApprovalResultMismatch();
+    error NotFunctionsConsumer();
+    error BeforeDeadline();
 
     // ========= Functions =========
     function resolveListing(bytes32 _listingId, bool _toBuyer) external;

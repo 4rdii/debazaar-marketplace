@@ -151,7 +151,7 @@ contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer,
             disputedListing.arbiters.add(arbiters[i]);
         }
 
-        emit RandomnessReceived(listingId, randomNumber);
+        emit RandomnessReceived(listingId, randomNumber, provider);
     }
 
     function getEntropy() internal view override returns (address) {

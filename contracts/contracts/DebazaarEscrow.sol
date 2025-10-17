@@ -8,7 +8,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IDebazaarEscrow} from "./interfaces/IDebazaarEscrow.sol";
 import {IDebazaarArbiter} from "./interfaces/IDebazaarArbiter.sol";
 import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
-
+import {IFunctionsConsumer} from "./interfaces/IFunctionsConsumer.sol";
 
 /// @title Debazaar Escrow
 /// @author 4rdii
@@ -21,7 +21,9 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
 
     uint256 private s_feeBasisPoints;
     address private s_arbiter;
+    address private s_functionsConsumer;
     mapping(bytes32 => Listing) private s_listings;
+    mapping(bytes32 => bytes32) private chainlinkRequestIdToListingId;
 
     constructor(address _owner) Ownable(_owner) {}
 
@@ -77,6 +79,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
             } else if (listing.escrowType == EscrowType.API_APPROVAL) {
                 ApiApprovalData memory apiApprovalData = abi.decode(_extraData, (ApiApprovalData));
                 listing.apiApprovalData = apiApprovalData;
+                listing.apiApprovalData.requestId = bytes32(0); // this will be set when the delivery is started
             }
         }
 
@@ -148,9 +151,48 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         // Interactions
         emit DeBazaar__Delivered(_listingId);
     }
+    /// @notice Seller starts delivery for API approval; sets deadline and transitions to Delivered.
+    /// @param _listingId The id of the escrow.
+    /// @param _donHostedSecretsSlotID The DON hosted secrets slot ID for the API approval.
+    /// @param _donHostedSecretsVersion The DON hosted secrets version for the API approval.
+    /// @param _subscriptionId The subscription ID for the API approval.
+    /// @param _gasLimit The gas limit for the API approval.
+    /// @param _donID The DON ID for the API approval.
+    /// @dev This function is only callable by the seller.
+    /// @dev This function sets the deadline and transitions the escrow to Delivered.
+    /// @dev This function sends a request to the functions consumer for API approval.
+    /// @dev This function emits the DeliveryStarted event.
 
-    function deliverApiApprovalListing(bytes32 _listingId) external nonReentrant {
-        // not implemented yet
+    function deliverApiApprovalListing(
+        bytes32 _listingId,
+        uint8 _donHostedSecretsSlotID,
+        uint64 _donHostedSecretsVersion,
+        uint64 _subscriptionId,
+        uint32 _gasLimit,
+        bytes32 _donID
+    ) external nonReentrant {
+        Listing storage listing = s_listings[_listingId];
+        // Checks
+        if (msg.sender != listing.seller) revert NotSeller();
+        if (listing.state != State.Filled) revert InvalidState();
+        if (listing.escrowType != EscrowType.API_APPROVAL) revert InvalidEscrowType();
+
+        // Effects
+        listing.state = State.Delivered;
+        bytes32 requestId = IFunctionsConsumer(s_functionsConsumer).sendRequest(
+            listing.apiApprovalData.source,
+            listing.apiApprovalData.encryptedSecretsUrls,
+            _donHostedSecretsSlotID,
+            _donHostedSecretsVersion,
+            listing.apiApprovalData.args,
+            listing.apiApprovalData.bytesArgs,
+            _subscriptionId,
+            _gasLimit,
+            _donID
+        );
+        chainlinkRequestIdToListingId[requestId] = _listingId;
+        emit DeBazaar__ApiApprovalRequested(_listingId, requestId);
+        emit DeBazaar__Delivered(_listingId);
     }
     /// @notice Delivers an onchain approval listing
     /// @param _listingId The ID of the listing
@@ -160,7 +202,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
 
     function deliverOnchainApprovalListing(bytes32 _listingId) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
-        
+
         // Checks
         if (listing.state != State.Filled) revert InvalidState();
         if (listing.escrowType != EscrowType.ONCHAIN_APPROVAL) revert InvalidEscrowType();
@@ -253,6 +295,48 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
             emit DeBazaar__Released(_listingId);
         }
     }
+
+    /**
+     * @notice Fulfill the request for API approval or onchain approval.
+     * @param requestId The id of the request.
+     * @param response The response from the functions consumer.
+     * @param err The error from the functions consumer.
+     * @dev This function is only callable by the functions consumer.
+     * @dev This function resolves the escrow to the buyer or seller based on the response.
+     */
+
+    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) external { 
+        bytes32 listingId = chainlinkRequestIdToListingId[requestId];
+        Listing storage listing = s_listings[listingId];
+        // Checks
+        if (msg.sender != s_functionsConsumer) revert NotFunctionsConsumer();
+        if (listing.state != State.Delivered) revert InvalidState();
+        if (block.timestamp > listing.deadline) revert BeforeDeadline();
+        if (err.length > 0) {
+            emit DeBazaar__ApiReturnedAnError(listingId, err);
+            return; 
+        }
+        // Effects
+        // Interactions
+        if (response.length > 0) {
+            // Decode the response as uint256
+            uint256 responseValue = abi.decode(response, (uint256));
+            if (responseValue == 1) {
+                // BTC price > 1000, resolve to buyer (refund)
+                this.resolveListing(listingId, true);
+                listing.state = State.Released;
+                emit DeBazaar__Released(listingId);
+            } else {
+                // BTC price <= 1000, resolve to seller (release funds)
+                emit DeBazaar__ApiReturnedFalse(listingId);
+            }
+        } else {
+            // No response, resolve to buyer (refund)
+            // TODO: should we refund the buyer here?
+            emit DeBazaar__ApiReturnedEmptyResponse(listingId);
+        }
+    }
+
     // ========= Setter Functions =========
 
     function setArbiter(address _arbiter) external onlyOwner {
@@ -265,6 +349,10 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         s_feeBasisPoints = _feeBasisPoints;
     }
 
+    function setFunctionsConsumer(address _functionsConsumer) external onlyOwner {
+        if (_functionsConsumer == address(0)) revert ZeroAddress();
+        s_functionsConsumer = _functionsConsumer;
+    }
     // ========= Getter Functions =========
 
     /// @notice Returns the listing details
@@ -284,6 +372,25 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     /// @return The protocol fee in basis points
     function getFee() external view returns (uint256) {
         return s_feeBasisPoints;
+    }
+
+    /// @notice Returns the functions consumer address
+    /// @return The functions consumer address
+    function getFunctionsConsumer() external view returns (address) {
+        return s_functionsConsumer;
+    }
+
+
+    function getApiApprovalData(bytes32 _listingId) external view returns (ApiApprovalData memory) {
+        Listing storage listing = s_listings[_listingId];
+        if (listing.escrowType != EscrowType.API_APPROVAL) revert InvalidEscrowType();
+        return listing.apiApprovalData;
+    }
+
+    function getOnchainApprovalData(bytes32 _listingId) external view returns (OnchainApprovalData memory) {
+        Listing storage listing = s_listings[_listingId];
+        if (listing.escrowType != EscrowType.ONCHAIN_APPROVAL) revert InvalidEscrowType();
+        return listing.onchainApprovalData;
     }
 
     // ========= Internal Functions =========

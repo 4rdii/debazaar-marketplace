@@ -42,7 +42,7 @@ interface IDebazaarArbiter {
     event ArbiterRemoved(address indexed arbiter);
     event ListingsAddedToQueue(bytes32 indexed listings);
     event ListingsResolved(bytes32 indexed listings, bool indexed toBuyer);
-    event RandomnessReceived(bytes32 indexed listingId, bytes32 indexed randomness);
+    event RandomnessReceived(bytes32 indexed listingId, bytes32 indexed randomness, address indexed provider);
     event RandomnessRequested(bytes32 indexed listingId, uint64 indexed sequenceNumber);
     event VoteCast(bytes32 indexed listingId, address indexed voter, Vote indexed vote);
     event DebazaarEscrowSet(address indexed debazaarEscrow);
