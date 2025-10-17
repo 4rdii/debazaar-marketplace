@@ -155,11 +155,13 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     /// @dev the seller marks the listing as delivered, when he has delivered the listing to the buyer
     /// @dev anyone can call this function, and if the call was successful, the listing is resolved in favor of the seller
     /// @dev Its highly suggested to call this function in the same transaction as the asset transfer transaction, to avoid frontrunning attacks
+
     function deliverOnchainApprovalListing(bytes32 _listingId) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
         if (listing.state != State.Filled) revert InvalidState();
         if (listing.escrowType != EscrowType.ONCHAIN_APPROVAL) revert InvalidEscrowType();
-        (bool approvalSuccess, bytes memory result) = listing.onchainApprovalData.destination.staticcall(listing.onchainApprovalData.data);
+        (bool approvalSuccess, bytes memory result) =
+            listing.onchainApprovalData.destination.staticcall(listing.onchainApprovalData.data);
         if (!approvalSuccess) {
             revert ApprovalStaticCallFailed();
         }
@@ -169,10 +171,9 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         } else {
             revert ApprovalResultMismatch();
         }
-        
+
         emit DeBazaar__Delivered(_listingId);
     }
-    
 
     /// @notice Disputs a listing
     /// @param _listingId The ID of the listing
