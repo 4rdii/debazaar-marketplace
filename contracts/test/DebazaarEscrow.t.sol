@@ -131,7 +131,7 @@ contract DebazaarEscrowTest is TestBase {
         emit DeBazaar__ListingFilled(listingId, buyer, deadline);
         
         vm.prank(buyer);
-        escrow.fillListing(listingId, deadline);
+        escrow.fillListing(listingId, deadline, bytes(""));
         
         (IDebazaarEscrow.Listing memory listing) = escrow.getListing(listingId);
         assertEq(listing.buyer, buyer, "Buyer should be set");
@@ -147,7 +147,7 @@ contract DebazaarEscrowTest is TestBase {
         vm.prank(buyer);
         // This will fail because the listing doesn't exist, so token transfer will fail
         vm.expectRevert();
-        escrow.fillListing(listingId, deadline);
+        escrow.fillListing(listingId, deadline, bytes(""));
     }
     
     function testFillListingRevertsOnExpired() public {
@@ -166,7 +166,7 @@ contract DebazaarEscrowTest is TestBase {
         vm.warp(expiration+1);
         vm.prank(buyer);
         vm.expectRevert(IDebazaarEscrow.ListingExpired.selector);
-        escrow.fillListing(listingId, deadline);
+        escrow.fillListing(listingId, deadline, bytes(""));
     }
     
     function testFillListingRevertsOnInvalidDeadline() public {
@@ -175,7 +175,7 @@ contract DebazaarEscrowTest is TestBase {
         
         vm.prank(buyer);
         vm.expectRevert(IDebazaarEscrow.InvalidDeadlineForRefund.selector);
-        escrow.fillListing(listingId, invalidDeadline);
+        escrow.fillListing(listingId, invalidDeadline, bytes(""));
     }
     
     function testCancelListingBySeller() public {

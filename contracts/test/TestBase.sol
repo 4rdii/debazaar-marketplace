@@ -125,7 +125,7 @@ contract TestBase is Test {
         uint64 deadline = getFutureTime(TEST_DEADLINE);
         
         vm.prank(buyer);
-        escrow.fillListing(listingId, deadline);
+        escrow.fillListing(listingId, deadline, bytes(""));
     }
     
     function deliverTestListing(bytes32 listingId) internal {

@@ -23,6 +23,19 @@ interface IDebazaarEscrow {
         DISPUTABLE
     }
 
+    struct OnchainApprovalData {
+        address destination;
+        bytes data;
+        bytes expectedResult;
+    }
+
+    struct ApiApprovalData {
+        string source;
+        bytes encryptedSecretsUrls;
+        string[] args;
+        bytes[] bytesArgs;
+    }
+
     struct Listing {
         bytes32 listingId;
         address buyer;
@@ -33,6 +46,8 @@ interface IDebazaarEscrow {
         uint64 deadline;
         State state;
         EscrowType escrowType;
+        OnchainApprovalData onchainApprovalData;
+        ApiApprovalData apiApprovalData;
     }
     // ========= Events =========
 
@@ -69,6 +84,9 @@ interface IDebazaarEscrow {
     error DeadlineHasNotPassed();
     error InsufficientFeeSentForRandomNumberGeneration(uint128 fee, uint256 msgValue);
     error FailedToRefund();
+    error InvalidExtraData();
+    error ApprovalStaticCallFailed();
+    error ApprovalResultMismatch();
 
     // ========= Functions =========
     function resolveListing(bytes32 _listingId, bool _toBuyer) external;

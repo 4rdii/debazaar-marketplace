@@ -62,16 +62,27 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     /// @notice Fills a listing for the buyer
     /// @param _listingId The ID of the listing
     /// @param _deadline The deadline of the listing, after which the buyer can be refunded
-    function fillListing(bytes32 _listingId, uint64 _deadline) external nonReentrant {
+    function fillListing(bytes32 _listingId, uint64 _deadline, bytes calldata _extraData) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
         // Checks
         if (listing.state != State.Open) revert InvalidState();
         if (listing.expiration <= block.timestamp) revert ListingExpired();
         if (_deadline <= block.timestamp) revert InvalidDeadlineForRefund();
+        if (_extraData.length != 0) {
+            if (listing.escrowType == EscrowType.ONCHAIN_APPROVAL) {
+                OnchainApprovalData memory onchainApprovalData = abi.decode(_extraData, (OnchainApprovalData));
+                listing.onchainApprovalData = onchainApprovalData;
+            } else if (listing.escrowType == EscrowType.API_APPROVAL) {
+                ApiApprovalData memory apiApprovalData = abi.decode(_extraData, (ApiApprovalData));
+                listing.apiApprovalData = apiApprovalData;
+            }
+        }
+
         // Effects
         listing.buyer = msg.sender;
         listing.state = State.Filled;
         listing.deadline = _deadline;
+
         // Interactions
         listing.token.safeTransferFrom(msg.sender, address(this), listing.amount);
         emit DeBazaar__ListingFilled(_listingId, msg.sender, _deadline);
@@ -84,19 +95,21 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         Listing storage listing = s_listings[_listingId];
         // Checks
         if (listing.buyer != msg.sender) revert NotBuyer();
-        if (listing.state != State.Filled ) revert InvalidState();
+        if (listing.state != State.Filled) revert InvalidState();
         if (block.timestamp < listing.deadline) revert DeadlineHasNotPassed();
+
         // Effects
         if (block.timestamp < listing.expiration) {
             listing.state = State.Open;
             listing.buyer = address(0);
             listing.deadline = 0;
             emit DeBazaar__ListingReset(_listingId);
-        }
-        else {
+        } else {
             listing.state = State.Canceled;
             emit DeBazaar__ListingCancelled(msg.sender, _listingId);
         }
+
+        // Interactions
         listing.token.safeTransfer(msg.sender, listing.amount);
     }
 
@@ -105,11 +118,15 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     /// @dev Only the seller can cancel the listing, Listing is cancalable by seller, before the buyer has paid for the listing
     function cancelListingBySeller(bytes32 _listingId) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
+
         // Checks
         if (listing.seller != msg.sender) revert NotSeller();
         if (listing.state != State.Open) revert InvalidState();
+
         // Effects
         listing.state = State.Canceled;
+
+        // Interactions
         emit DeBazaar__ListingCancelled(msg.sender, _listingId);
     }
 
@@ -122,8 +139,10 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         if (listing.escrowType != EscrowType.DISPUTABLE) revert InvalidEscrowType();
         if (listing.state != State.Filled) revert InvalidState();
         if (msg.sender != listing.seller) revert NotSeller();
+
         // Effects
         listing.state = State.Delivered;
+
         // Interactions
         emit DeBazaar__Delivered(_listingId);
     }
@@ -131,10 +150,29 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     function deliverApiApprovalListing(bytes32 _listingId) external nonReentrant {
         // not implemented yet
     }
-
+    /// @notice Delivers an onchain approval listing
+    /// @param _listingId The ID of the listing
+    /// @dev the seller marks the listing as delivered, when he has delivered the listing to the buyer
+    /// @dev anyone can call this function, and if the call was successful, the listing is resolved in favor of the seller
+    /// @dev Its highly suggested to call this function in the same transaction as the asset transfer transaction, to avoid frontrunning attacks
     function deliverOnchainApprovalListing(bytes32 _listingId) external nonReentrant {
-        // not implemented yet
+        Listing storage listing = s_listings[_listingId];
+        if (listing.state != State.Filled) revert InvalidState();
+        if (listing.escrowType != EscrowType.ONCHAIN_APPROVAL) revert InvalidEscrowType();
+        (bool approvalSuccess, bytes memory result) = listing.onchainApprovalData.destination.staticcall(listing.onchainApprovalData.data);
+        if (!approvalSuccess) {
+            revert ApprovalStaticCallFailed();
+        }
+        if (keccak256(result) == keccak256(listing.onchainApprovalData.expectedResult)) {
+            this.resolveListing(_listingId, false);
+            listing.state = State.Released;
+        } else {
+            revert ApprovalResultMismatch();
+        }
+        
+        emit DeBazaar__Delivered(_listingId);
     }
+    
 
     /// @notice Disputs a listing
     /// @param _listingId The ID of the listing
@@ -154,6 +192,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
 
         // Effects
         listing.state = State.Disputed;
+
         // Interactions
         arbiterContract.addListingToQueue{value: fee}(_listingId);
         if (msg.value - fee > 0) {
@@ -174,6 +213,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
      */
     function resolveListing(bytes32 _listingId, bool _toBuyer) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
+
         // Checks
         if (listing.escrowType == EscrowType.DISPUTABLE) {
             if (listing.state == State.Disputed) {
@@ -193,6 +233,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         } else if (listing.escrowType == EscrowType.ONCHAIN_APPROVAL) {
             require(msg.sender == address(this), "Only the escrow itself can resolve this listing");
         }
+
         // Effects
         _toBuyer ? listing.state = State.Refunded : listing.state = State.Released;
 
@@ -221,10 +262,14 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         return s_listings[_listingId];
     }
 
+    /// @notice Returns the arbiter address
+    /// @return The arbiter address
     function getArbiter() external view returns (address) {
         return s_arbiter;
     }
 
+    /// @notice Returns the protocol fee in basis points
+    /// @return The protocol fee in basis points
     function getFee() external view returns (uint256) {
         return s_feeBasisPoints;
     }

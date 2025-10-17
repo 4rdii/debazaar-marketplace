@@ -70,8 +70,11 @@ contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer,
         } else {
             disputedListing.votesForSeller++;
         }
-        
+
         // Interactions
+        emit VoteCast(_listingId, msg.sender, _toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER);
+
+        // Check if the listing is resolved and call escrow.resolveListing
         if (disputedListing.votesForBuyer >= ARBITERS_PER_LISTING / 2 + 1) {
             disputedListing.state = State.Resolved;
             IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, true);
@@ -81,7 +84,6 @@ contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer,
             IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, false);
             emit ListingsResolved(_listingId, false);
         }
-        emit VoteCast(_listingId, msg.sender, _toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER);
     }
 
     function setDebazaarEscrow(address _debazaarEscrow) external onlyOwner {
