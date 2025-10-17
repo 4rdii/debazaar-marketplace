@@ -6,7 +6,10 @@ import {DebazaarEscrow} from "../contracts/DebazaarEscrow.sol";
 import {DebazaarArbiter} from "../contracts/DebazaarArbiter.sol";
 import {MockERC20} from "./MockERC20.sol";
 import {MockEntropyV2} from "./MockEntropyV2.sol";
+import {MockERC721} from "./MockERC721.sol";
+import {MockMulticall3} from "./MockMulticall3.sol";
 import {IDebazaarEscrow} from "../contracts/interfaces/IDebazaarEscrow.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract TestBase is Test {
     // Core contracts
@@ -14,6 +17,8 @@ contract TestBase is Test {
     DebazaarArbiter public arbiter;
     MockERC20 public token;
     MockEntropyV2 public entropyV2;
+    MockERC721 public nft;
+    MockMulticall3 public multicall3;
     
     // Test accounts
     address public owner;
@@ -29,6 +34,7 @@ contract TestBase is Test {
     uint256 public constant TEST_AMOUNT = 100 ether;
     uint64 public constant TEST_EXPIRATION = 10800; // 3 hours (greater than MIN_EXPIRATION of 1 hour)
     uint64 public constant TEST_DEADLINE = 7200; // 2 hours
+    uint256 public constant TEST_TOKEN_ID = 1;
     uint256 nonce; // nonce for generating listing id
 
     function setUp() public virtual {
@@ -45,6 +51,8 @@ contract TestBase is Test {
         // Deploy mock contracts
         token = new MockERC20("Test Token", "TEST");
         entropyV2 = new MockEntropyV2();
+        nft = new MockERC721("TestNFT", "TNFT");
+        multicall3 = new MockMulticall3();
         
         // Deploy escrow
         escrow = new DebazaarEscrow(owner);
@@ -70,7 +78,10 @@ contract TestBase is Test {
         vm.prank(buyer);
         token.approve(address(escrow), TEST_AMOUNT * 10);
 
-        // deal fee to everyon 
+        // Mint NFT to seller for tests
+        nft.mint(seller, TEST_TOKEN_ID);
+        
+        // deal fee to everyone 
         vm.deal(owner, 1 ether);
         vm.deal(buyer, 1 ether);
         vm.deal(seller, 1 ether);
@@ -138,5 +149,84 @@ contract TestBase is Test {
         
         vm.prank(buyer);
         escrow.disputeListing{value: fee}(listingId);
+    }
+    
+    // ========= Onchain Approval Helper Functions =========
+    
+    function createOnchainApprovalListing() internal returns (bytes32) {
+        bytes32 listingId = generateListingId();
+        uint64 expiration = getFutureTime(TEST_EXPIRATION);
+        
+        vm.prank(seller);
+        escrow.createListing(
+            listingId,
+            address(token),
+            TEST_AMOUNT,
+            expiration,
+            IDebazaarEscrow.EscrowType.ONCHAIN_APPROVAL
+        );
+        
+        return listingId;
+    }
+    
+    function fillOnchainApprovalListing(bytes32 listingId) internal {
+        uint64 deadline = getFutureTime(TEST_DEADLINE);
+        
+        // Create onchain approval data
+        IDebazaarEscrow.OnchainApprovalData memory approvalData = IDebazaarEscrow.OnchainApprovalData({
+            destination: address(nft),
+            data: encodeOwnerOfCall(TEST_TOKEN_ID),
+            expectedResult: encodeExpectedResult(buyer)
+        });
+        
+        bytes memory extraData = abi.encode(approvalData);
+        
+        vm.prank(buyer);
+        escrow.fillListing(listingId, deadline, extraData);
+    }
+    
+    function encodeOwnerOfCall(uint256 tokenId) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(IERC721.ownerOf.selector, tokenId);
+    }
+    
+    function encodeExpectedResult(address expectedOwner) internal pure returns (bytes memory) {
+        return abi.encode(expectedOwner);
+    }
+    
+    function transferNFTToBuyer() internal {
+        vm.prank(seller);
+        nft.transferFrom(seller, buyer, TEST_TOKEN_ID);
+    }
+    
+    function deliverOnchainApprovalListing(bytes32 listingId) internal {
+        escrow.deliverOnchainApprovalListing(listingId);
+    }
+    
+    function createMulticallForNFTTransferAndDelivery(bytes32 listingId) internal view returns (MockMulticall3.Call3[] memory) {
+        MockMulticall3.Call3[] memory calls = new MockMulticall3.Call3[](2);
+        
+        // Call 1: Transfer NFT
+        calls[0] = MockMulticall3.Call3({
+            target: address(nft),
+            allowFailure: false,
+            callData: abi.encodeWithSelector(
+                IERC721.transferFrom.selector,
+                seller,
+                buyer,
+                TEST_TOKEN_ID
+            )
+        });
+        
+        // Call 2: Deliver listing
+        calls[1] = MockMulticall3.Call3({
+            target: address(escrow),
+            allowFailure: false,
+            callData: abi.encodeWithSelector(
+                escrow.deliverOnchainApprovalListing.selector,
+                listingId
+            )
+        });
+        
+        return calls;
     }
 }

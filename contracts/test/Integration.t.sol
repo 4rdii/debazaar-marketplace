@@ -3,11 +3,52 @@ pragma solidity ^0.8.28;
 
 import {TestBase} from "./TestBase.sol";
 import {Vm} from "forge-std/Vm.sol";
+import {MockMulticall3} from "./MockMulticall3.sol";
 
 import {IDebazaarEscrow} from "../contracts/interfaces/IDebazaarEscrow.sol";
 
 contract IntegrationTest is TestBase {
     
+    function testFullOnchainApprovalFlow() public {
+        // Step 1: Seller creates ONCHAIN_APPROVAL listing
+        bytes32 listingId = createOnchainApprovalListing();
+        
+        // Step 2: Buyer fills listing with onchain approval data
+        fillOnchainApprovalListing(listingId);
+        assertEq(token.balanceOf(address(escrow)), TEST_AMOUNT, "Tokens should be in escrow");
+        
+        // Step 3: Seller transfers NFT to buyer
+        transferNFTToBuyer();
+        assertEq(nft.ownerOf(TEST_TOKEN_ID), buyer, "NFT should be owned by buyer");
+        
+        // Step 4: Anyone can call deliverOnchainApprovalListing
+        deliverOnchainApprovalListing(listingId);
+        
+        // Step 5: Verify listing is resolved and funds released
+        IDebazaarEscrow.Listing memory listing = escrow.getListing(listingId);
+        assertEq(uint8(listing.state), 3, "Listing should be Released");
+        assertEq(token.balanceOf(seller), TEST_AMOUNT, "Seller should receive payment");
+        assertEq(token.balanceOf(address(escrow)), 0, "Escrow should have no tokens");
+    }
+    
+    function testOnchainApprovalWithMulticall() public {
+        // Step 1: Create and fill listing
+        bytes32 listingId = createOnchainApprovalListing();
+        fillOnchainApprovalListing(listingId);
+        
+        // Step 2: Use multicall to atomically transfer NFT and deliver listing
+        MockMulticall3.Call3[] memory calls = createMulticallForNFTTransferAndDelivery(listingId);
+        
+        vm.prank(seller);
+        multicall3.aggregate3(calls);
+        
+        // Step 3: Verify everything worked atomically
+        IDebazaarEscrow.Listing memory listing = escrow.getListing(listingId);
+        assertEq(uint8(listing.state), 3, "Listing should be Released");
+        assertEq(nft.ownerOf(TEST_TOKEN_ID), buyer, "NFT should be owned by buyer");
+        assertEq(token.balanceOf(seller), TEST_AMOUNT, "Seller should receive payment");
+    }
+   
     function testFullDisputeResolutionFlow() public {
         // Step 1: Seller creates DISPUTABLE listing
         bytes32 listingId = createTestListing();

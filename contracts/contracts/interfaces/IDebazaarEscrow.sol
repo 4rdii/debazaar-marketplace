@@ -70,6 +70,7 @@ interface IDebazaarEscrow {
     // ========= Errors =========
 
     error ZeroAddress();
+    error InvalidFee();
     error InvalidDeadline();
     error ZeroAmount();
     error ListingAlreadyExists();
