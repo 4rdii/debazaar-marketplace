@@ -9,6 +9,7 @@ import {IDebazaarEscrow} from "./interfaces/IDebazaarEscrow.sol";
 import {IDebazaarArbiter} from "./interfaces/IDebazaarArbiter.sol";
 import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
 
+
 /// @title Debazaar Escrow
 /// @author 4rdii
 /// @notice This contract is used to escrow funds for the Debazaar Marketplace
@@ -71,6 +72,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         if (_extraData.length != 0) {
             if (listing.escrowType == EscrowType.ONCHAIN_APPROVAL) {
                 OnchainApprovalData memory onchainApprovalData = abi.decode(_extraData, (OnchainApprovalData));
+                if (onchainApprovalData.destination == address(0)) revert ZeroAddress();
                 listing.onchainApprovalData = onchainApprovalData;
             } else if (listing.escrowType == EscrowType.API_APPROVAL) {
                 ApiApprovalData memory apiApprovalData = abi.decode(_extraData, (ApiApprovalData));
@@ -158,8 +160,12 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
 
     function deliverOnchainApprovalListing(bytes32 _listingId) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
+        
+        // Checks
         if (listing.state != State.Filled) revert InvalidState();
         if (listing.escrowType != EscrowType.ONCHAIN_APPROVAL) revert InvalidEscrowType();
+        // Effects
+        // Interactions
         (bool approvalSuccess, bytes memory result) =
             listing.onchainApprovalData.destination.staticcall(listing.onchainApprovalData.data);
         if (!approvalSuccess) {
@@ -212,7 +218,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
      * @param _listingId The id of the escrow.
      * @param _toBuyer The boolean to determine if the listing is resolved in favor of the buyer.
      */
-    function resolveListing(bytes32 _listingId, bool _toBuyer) external nonReentrant {
+    function resolveListing(bytes32 _listingId, bool _toBuyer) external {
         Listing storage listing = s_listings[_listingId];
 
         // Checks
@@ -252,6 +258,11 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     function setArbiter(address _arbiter) external onlyOwner {
         if (_arbiter == address(0)) revert ZeroAddress();
         s_arbiter = _arbiter;
+    }
+
+    function setFee(uint256 _feeBasisPoints) external onlyOwner {
+        if (_feeBasisPoints > BASE_BASIS_POINTS) revert InvalidFee();
+        s_feeBasisPoints = _feeBasisPoints;
     }
 
     // ========= Getter Functions =========

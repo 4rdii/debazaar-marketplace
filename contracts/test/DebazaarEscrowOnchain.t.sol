@@ -76,12 +76,11 @@ contract DebazaarEscrowOnchainTest is TestBase {
         
         // Transfer NFT to buyer first
         transferNFTToBuyer();
-        
-        vm.expectEmit(true, true, true, true);
-        emit DeBazaar__Delivered(listingId);
-        
         vm.expectEmit(true, true, true, true);
         emit DeBazaar__Released(listingId);
+
+        vm.expectEmit(true, true, true, true);
+        emit DeBazaar__Delivered(listingId);
         
         deliverOnchainApprovalListing(listingId);
         
@@ -96,13 +95,16 @@ contract DebazaarEscrowOnchainTest is TestBase {
         
         MockMulticall3.Call3[] memory calls = createMulticallForNFTTransferAndDelivery(listingId);
         
+
+        
+        vm.prank(seller);
+        nft.approve(address(multicall3), TEST_TOKEN_ID);
+
+        vm.expectEmit(true, true, true, true);
+        emit DeBazaar__Released(listingId);
         vm.expectEmit(true, true, true, true);
         emit DeBazaar__Delivered(listingId);
         
-        vm.expectEmit(true, true, true, true);
-        emit DeBazaar__Released(listingId);
-        
-        vm.prank(seller);
         multicall3.aggregate3(calls);
         
         IDebazaarEscrow.Listing memory listing = escrow.getListing(listingId);
@@ -118,10 +120,10 @@ contract DebazaarEscrowOnchainTest is TestBase {
         address randomUser = makeAddr("randomUser");
         
         vm.expectEmit(true, true, true, true);
+        emit DeBazaar__Released(listingId);
+        vm.expectEmit(true, true, true, true);
         emit DeBazaar__Delivered(listingId);
         
-        vm.expectEmit(true, true, true, true);
-        emit DeBazaar__Released(listingId);
         
         vm.prank(randomUser);
         deliverOnchainApprovalListing(listingId);
@@ -136,10 +138,10 @@ contract DebazaarEscrowOnchainTest is TestBase {
         transferNFTToBuyer();
         
         vm.expectEmit(true, true, true, true);
+        emit DeBazaar__Released(listingId);
+        vm.expectEmit(true, true, true, true);
         emit DeBazaar__Delivered(listingId);
         
-        vm.expectEmit(true, true, true, true);
-        emit DeBazaar__Released(listingId);
         
         deliverOnchainApprovalListing(listingId);
     }
@@ -228,8 +230,8 @@ contract DebazaarEscrowOnchainTest is TestBase {
         
         uint64 deadline = getFutureTime(TEST_DEADLINE);
         IDebazaarEscrow.OnchainApprovalData memory approvalData = IDebazaarEscrow.OnchainApprovalData({
-            destination: address(0x1), // Invalid address
-            data: encodeOwnerOfCall(TEST_TOKEN_ID),
+            destination: address(nft), 
+            data: hex"13250000", //Invalid data,
             expectedResult: encodeExpectedResult(buyer)
         });
         
@@ -296,7 +298,7 @@ contract DebazaarEscrowOnchainTest is TestBase {
         
         uint64 deadline = getFutureTime(TEST_DEADLINE);
         IDebazaarEscrow.OnchainApprovalData memory approvalData = IDebazaarEscrow.OnchainApprovalData({
-            destination: address(0xDEADBEEF), // Invalid contract address
+            destination: address(escrow), // Invalid contract address
             data: encodeOwnerOfCall(TEST_TOKEN_ID),
             expectedResult: encodeExpectedResult(buyer)
         });
@@ -351,10 +353,9 @@ contract DebazaarEscrowOnchainTest is TestBase {
         bytes memory extraData = abi.encode(approvalData);
         
         vm.prank(buyer);
+        vm.expectRevert(IDebazaarEscrow.ZeroAddress.selector);
         escrow.fillListing(listingId, deadline, extraData);
         
-        vm.expectRevert(IDebazaarEscrow.ApprovalStaticCallFailed.selector);
-        escrow.deliverOnchainApprovalListing(listingId);
     }
     
     function testDeliverOnchainApprovalListingWithLargeReturnData() public {

@@ -39,8 +39,10 @@ contract IntegrationTest is TestBase {
         // Step 2: Use multicall to atomically transfer NFT and deliver listing
         MockMulticall3.Call3[] memory calls = createMulticallForNFTTransferAndDelivery(listingId);
         
-        vm.prank(seller);
+        vm.startPrank(seller);
+        nft.approve(address(multicall3), TEST_TOKEN_ID);
         multicall3.aggregate3(calls);
+        vm.stopPrank();
         
         // Step 3: Verify everything worked atomically
         IDebazaarEscrow.Listing memory listing = escrow.getListing(listingId);
