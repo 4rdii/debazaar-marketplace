@@ -13,7 +13,6 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
  * @title FunctionsConsumerDebazaarUpgradeable
  * @author 4rdii
  * @dev Upgradeable version of FunctionsConsumerDebazaar using UUPS proxy pattern
- * @notice This contract can be upgraded without changing the proxy address
  */
 contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     using FunctionsRequest for FunctionsRequest.Request;
@@ -33,7 +32,7 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
     error ZeroAddress();
     error NotEscrowContract();
 
-    event Response(bytes32 indexed requestId, bytes response, bytes err);
+    event ResponseReceived(bytes32 indexed requestId, bytes response, bytes err);
 
     constructor(address _router) FunctionsClient(_router) {
         // Disable initializers in implementation contract
@@ -66,14 +65,14 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
         __UUPSUpgradeable_init();
 
         // Initialize storage
-        ConsumerStorage storage $ = _getStorage();
-        $.lastRequestId = bytes32(0);
-        $.debazaarEscrow = debazaarEscrow;
+        ConsumerStorage storage consumerStorage = _getStorage();
+        consumerStorage.lastRequestId = bytes32(0);
+        consumerStorage.debazaarEscrow = debazaarEscrow;
     }
 
     function setEscrowContract(address debazaarEscrow) external onlyOwner {
-        ConsumerStorage storage $ = _getStorage();
-        $.debazaarEscrow = debazaarEscrow;
+        ConsumerStorage storage consumerStorage = _getStorage();
+        consumerStorage.debazaarEscrow = debazaarEscrow;
     }
 
     /**
@@ -97,8 +96,8 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
         uint32 gasLimit,
         bytes32 donID
     ) external returns (bytes32 requestId) {
-        ConsumerStorage storage $ = _getStorage();
-        if (msg.sender != $.debazaarEscrow) {
+        ConsumerStorage storage consumerStorage = _getStorage();
+        if (msg.sender != consumerStorage.debazaarEscrow) {
             revert NotEscrowContract();
         }
         FunctionsRequest.Request memory req;
@@ -111,8 +110,8 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
         if (args.length > 0) req.setArgs(args);
         if (bytesArgs.length > 0) req.setBytesArgs(bytesArgs);
 
-        $.lastRequestId = _sendRequest(req.encodeCBOR(), subscriptionId, gasLimit, donID);
-        return $.lastRequestId;
+        consumerStorage.lastRequestId = _sendRequest(req.encodeCBOR(), subscriptionId, gasLimit, donID);
+        return consumerStorage.lastRequestId;
     }
 
     /**
@@ -127,12 +126,12 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
         external
         returns (bytes32 requestId)
     {
-        ConsumerStorage storage $ = _getStorage();
-        if (msg.sender != $.debazaarEscrow) {
+        ConsumerStorage storage consumerStorage = _getStorage();
+        if (msg.sender != consumerStorage.debazaarEscrow) {
             revert NotEscrowContract();
         }
-        $.lastRequestId = _sendRequest(request, subscriptionId, gasLimit, donID);
-        return $.lastRequestId;
+        consumerStorage.lastRequestId = _sendRequest(request, subscriptionId, gasLimit, donID);
+        return consumerStorage.lastRequestId;
     }
 
     /**
@@ -143,14 +142,14 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
      * Either response or error parameter will be set, but never both
      */
     function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
-        ConsumerStorage storage $ = _getStorage();
-        if ($.lastRequestId != requestId) {
+        ConsumerStorage storage consumerStorage = _getStorage();
+        if (consumerStorage.lastRequestId != requestId) {
             revert UnexpectedRequestID(requestId);
         }
-        $.lastResponse = response;
-        $.lastError = err;
-        IDebazaarEscrow($.debazaarEscrow).fulfillRequest(requestId, response, err);
-        emit Response(requestId, $.lastResponse, $.lastError);
+        consumerStorage.lastResponse = response;
+        consumerStorage.lastError = err;
+        IDebazaarEscrow(consumerStorage.debazaarEscrow).fulfillRequest(requestId, response, err);
+        emit ResponseReceived(requestId, consumerStorage.lastResponse, consumerStorage.lastError);
     }
 
     /**
@@ -158,8 +157,8 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
      * @return The escrow contract address
      */
     function getEscrowContract() external view returns (address) {
-        ConsumerStorage storage $ = _getStorage();
-        return $.debazaarEscrow;
+        ConsumerStorage storage consumerStorage = _getStorage();
+        return consumerStorage.debazaarEscrow;
     }
 
     /**
@@ -173,8 +172,8 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
         view
         returns (bytes32 requestId, bytes memory response, bytes memory error)
     {
-        ConsumerStorage storage $ = _getStorage();
-        return ($.lastRequestId, $.lastResponse, $.lastError);
+        ConsumerStorage storage consumerStorage = _getStorage();
+        return (consumerStorage.lastRequestId, consumerStorage.lastResponse, consumerStorage.lastError);
     }
 
     /**
@@ -182,8 +181,8 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
      * @return The last request ID
      */
     function getLastRequestId() external view returns (bytes32) {
-        ConsumerStorage storage $ = _getStorage();
-        return $.lastRequestId;
+        ConsumerStorage storage consumerStorage = _getStorage();
+        return consumerStorage.lastRequestId;
     }
 
     /**
@@ -191,8 +190,8 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
      * @return The last response
      */
     function getLastResponse() external view returns (bytes memory) {
-        ConsumerStorage storage $ = _getStorage();
-        return $.lastResponse;
+        ConsumerStorage storage consumerStorage = _getStorage();
+        return consumerStorage.lastResponse;
     }
 
     /**
@@ -200,8 +199,8 @@ contract FunctionsConsumerDebazaarUpgradeable is FunctionsClient, Initializable,
      * @return The last error
      */
     function getLastError() external view returns (bytes memory) {
-        ConsumerStorage storage $ = _getStorage();
-        return $.lastError;
+        ConsumerStorage storage consumerStorage = _getStorage();
+        return consumerStorage.lastError;
     }
 
     /**
