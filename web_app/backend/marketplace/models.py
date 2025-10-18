@@ -15,15 +15,15 @@ class CurrencyChoices(models.TextChoices):
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    telegram_id = models.BigIntegerField(unique=True)
-    wallet_address = models.CharField(max_length=42, blank=True, null=True)
+    telegram_id = models.BigIntegerField(unique=True, blank=True, null=True)  # Now optional for wallet-only auth
+    wallet_address = models.CharField(max_length=42, unique=True, blank=True, null=True, db_index=True)  # Primary identifier
     privy_user_id = models.CharField(max_length=128, blank=True, null=True, db_index=True)
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     total_ratings = models.IntegerField(default=0)
     dispute_count = models.IntegerField(default=0)
     total_orders = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     @property
     def dispute_rate(self):
         if self.total_orders == 0:
@@ -31,7 +31,11 @@ class UserProfile(models.Model):
         return (self.dispute_count / self.total_orders) * 100
 
     def __str__(self):
-        return f"{self.user.username} (TG: {self.telegram_id})"
+        if self.wallet_address:
+            return f"{self.user.username} (Wallet: {self.wallet_address[:8]}...)"
+        elif self.telegram_id:
+            return f"{self.user.username} (TG: {self.telegram_id})"
+        return f"{self.user.username}"
 
 
 class Listing(models.Model):

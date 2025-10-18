@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     # Auth
+    path('auth/wallet/', views.WalletAuthView.as_view(), name='wallet_auth'),
     path('auth/telegram/', views.TelegramAuthView.as_view(), name='telegram_auth'),
     path('auth/privy/', views.PrivyAuthView.as_view(), name='privy_auth'),
     

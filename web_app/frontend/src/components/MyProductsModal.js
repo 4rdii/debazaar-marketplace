@@ -3,24 +3,24 @@ import MyProductCard from './MyProductCard';
 import { api } from '../services/api';
 import './MyProductsModal.css';
 
-const MyProductsModal = ({ onClose, telegramUser, authUser, onProductClick }) => {
+const MyProductsModal = ({ onClose, authUser, onProductClick }) => {
     const [userProducts, setUserProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         loadUserProducts();
-    }, [authUser, telegramUser]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [authUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const loadUserProducts = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            const userId = authUser?.user_id || telegramUser?.id;
+            const userId = authUser?.user_id;
 
             if (!userId) {
-                setError('User not authenticated');
+                setError('User not authenticated. Please connect your wallet.');
                 setLoading(false);
                 return;
             }
@@ -57,7 +57,13 @@ const MyProductsModal = ({ onClose, telegramUser, authUser, onProductClick }) =>
 
     const handleDeleteProduct = async (productId) => {
         try {
-            const sellerId = authUser?.user_id || telegramUser?.id;
+            const sellerId = authUser?.user_id;
+
+            if (!sellerId) {
+                alert('Authentication required to delete products');
+                return;
+            }
+
             await api.deleteListing(productId, sellerId);
 
             // Remove the deleted product from the local state

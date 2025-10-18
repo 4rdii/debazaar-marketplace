@@ -129,6 +129,12 @@ class DisputeSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'resolved_at']
 
 
+class WalletAuthSerializer(serializers.Serializer):
+    wallet_address = serializers.CharField(max_length=42)
+    signature = serializers.CharField()
+    message = serializers.CharField()
+
+
 class TelegramAuthSerializer(serializers.Serializer):
     telegram_id = serializers.IntegerField()
     username = serializers.CharField(required=False)

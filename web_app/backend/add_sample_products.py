@@ -112,17 +112,23 @@ def create_sample_products():
         user.save()
         print(f"Created admin user")
 
-    # Create profile for admin
-    profile, created = UserProfile.objects.get_or_create(
-        user=user,
-        defaults={'telegram_id': 999999999}
-    )
-    if created:
+    # Create or update profile for admin
+    try:
+        profile = UserProfile.objects.get(user=user)
+        print(f"Using existing admin profile")
+    except UserProfile.DoesNotExist:
+        profile = UserProfile.objects.create(
+            user=user,
+            wallet_address='0x0000000000000000000000000000000000000001'
+        )
         print(f"Created profile for admin user")
 
     # Create additional sellers
     sellers = [user]
     for i in range(1, 6):
+        # Generate proper 42-char wallet address (0x + 40 hex chars)
+        # Pad with zeros on the left, seller number on the right
+        wallet_address = f'0x{"0" * 35}{str(i + 1000).zfill(5)}'
         seller, created = User.objects.get_or_create(
             username=f'seller_{i}',
             defaults={'first_name': f'Seller {i}'}
@@ -131,18 +137,21 @@ def create_sample_products():
             seller.set_password(f'seller{i}123')
             seller.save()
 
-        profile, created = UserProfile.objects.get_or_create(
-            user=seller,
-            defaults={
-                'telegram_id': 100000000 + i,
-                'rating': round(random.uniform(3.5, 5.0), 2),
-                'total_ratings': random.randint(10, 100),
-                'total_orders': random.randint(20, 200)
-            }
-        )
+        # Create or update profile
+        try:
+            profile = UserProfile.objects.get(user=seller)
+            print(f"Using existing seller: {seller.username}")
+        except UserProfile.DoesNotExist:
+            profile = UserProfile.objects.create(
+                user=seller,
+                wallet_address=wallet_address,
+                rating=round(random.uniform(3.5, 5.0), 2),
+                total_ratings=random.randint(10, 100),
+                total_orders=random.randint(20, 200)
+            )
+            print(f"Created seller: {seller.username} with wallet {wallet_address}")
+
         sellers.append(seller)
-        if created:
-            print(f"Created seller: {seller.username}")
 
     # Delete existing sample listings to avoid duplicates
     Listing.objects.filter(seller__in=sellers).delete()

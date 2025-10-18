@@ -4,10 +4,10 @@ import AddProductForm from './components/AddProductForm';
 import ProductDetailModal from './components/ProductDetailModal';
 import MyProductsModal from './components/MyProductsModal';
 import { api } from './services/api';
+import { authenticateWithWallet, getStoredAuth, logout } from './services/auth';
 import './App.css';
 import {
     isMetaMaskInstalled,
-    connectWallet,
     getCurrentAccount,
     getCurrentChainId,
     getNetworkName,
@@ -15,20 +15,16 @@ import {
     onAccountsChanged,
     onChainChanged
 } from './utils/metamask';
-// import { usePrivy } from '@privy-io/react-auth';
 
 function App() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
-    const [telegramUser, setTelegramUser] = useState(null);
     const [authUser, setAuthUser] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchTimeout, setSearchTimeout] = useState(null);
     const [showMyProducts, setShowMyProducts] = useState(false);
-    // const { login, authenticated, getIdToken } = usePrivy();
-    const authenticated = false; // Privy disabled
 
     // MetaMask state
     const [walletAddress, setWalletAddress] = useState(null);
@@ -36,37 +32,14 @@ function App() {
     const [isConnecting, setIsConnecting] = useState(false);
 
     useEffect(() => {
-        // Initialize Telegram WebApp
-        if (window.Telegram?.WebApp) {
-            const tg = window.Telegram.WebApp;
-
-            // Expand the app to full height
-            tg.expand();
-
-            // Get user data from Telegram
-            if (tg.initData) {
-                try {
-                    // Parse initData to get user information
-                    const params = new URLSearchParams(tg.initData);
-                    const userString = params.get('user');
-
-                    if (userString) {
-                        const user = JSON.parse(userString);
-                        setTelegramUser(user);
-
-                        // Authenticate with your backend
-                        authenticateWithTelegram(user);
-                    }
-                } catch (error) {
-                    console.error('Error parsing user data:', error);
-                }
-            }
-
-            // Set theme colors
-            tg.setHeaderColor('#2563eb');
-            tg.setBackgroundColor('#ffffff');
+        // Check for stored authentication on mount
+        const storedAuth = getStoredAuth();
+        if (storedAuth) {
+            setAuthUser(storedAuth.authUser);
+            setWalletAddress(storedAuth.walletAddress);
         }
 
+        // Load products
         loadProducts();
 
         // Check if wallet is already connected on mount
@@ -74,6 +47,10 @@ function App() {
 
         // Listen for account changes
         onAccountsChanged((newAccount) => {
+            if (newAccount && newAccount !== walletAddress) {
+                // Wallet changed - logout user
+                handleLogout();
+            }
             setWalletAddress(newAccount);
             console.log('Account changed to:', newAccount);
         });
@@ -94,37 +71,6 @@ function App() {
         };
     }, [searchTimeout]);
 
-    const authenticateWithTelegram = async (user) => {
-        try {
-            const apiUrl = process.env.REACT_APP_API_URL || 'https://api.debazaar.click/api';
-            const response = await fetch(`${apiUrl}/auth/telegram/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    telegram_id: user.id,
-                    username: user.username,
-                    first_name: user.first_name
-                })
-            });
-
-            if (response.ok) {
-                const authData = await response.json();
-                console.log('Authenticated:', authData);
-                console.log('Django User ID:', authData.user_id);
-                console.log('Telegram ID:', user.id);
-                // Store user session data
-                setAuthUser(authData);
-
-            } else {
-                const errorText = await response.text();
-                alert(`Authentication failed!\nStatus: ${response.status}\nError: ${errorText}`);
-            }
-        } catch (err) {
-            console.error('Telegram auth failed:', err);
-            alert(`Authentication error: ${err.message}`);
-        }
-    };
-
     const loadProducts = async (searchParams = {}) => {
         try {
             setLoading(true);
@@ -137,11 +83,6 @@ function App() {
         } finally {
             setLoading(false);
         }
-    };
-
-    const handlePrivyLogin = async () => {
-        // Privy temporarily disabled
-        alert('Privy login is currently disabled');
     };
 
     // MetaMask Functions
@@ -167,54 +108,66 @@ function App() {
         }
     };
 
-    // Connect MetaMask wallet
+    // Connect MetaMask wallet and authenticate
     const handleConnectWallet = async () => {
+        if (!isMetaMaskInstalled()) {
+            alert('Please install MetaMask to use this app!');
+            return;
+        }
+
         setIsConnecting(true);
 
         try {
-            const address = await connectWallet();
+            const authData = await authenticateWithWallet();
 
-            if (address) {
-                setWalletAddress(address);
+            if (authData && authData.success) {
+                setAuthUser(authData);
+                setWalletAddress(authData.wallet_address);
 
                 // Get chain ID
                 const chain = await getCurrentChainId();
                 setChainId(chain);
 
-                console.log('Wallet connected successfully!');
-                console.log('Address:', address);
+                console.log('Authenticated successfully!');
+                console.log('User ID:', authData.user_id);
+                console.log('Wallet:', authData.wallet_address);
                 console.log('Network:', getNetworkName(chain));
 
-                alert(`Wallet connected: ${formatAddress(address)}`);
+                alert(`Successfully authenticated!\nWallet: ${formatAddress(authData.wallet_address)}`);
             }
         } catch (error) {
-            console.error('Connection error:', error);
+            console.error('Authentication error:', error);
+            alert(`Authentication failed: ${error.message}`);
         } finally {
             setIsConnecting(false);
         }
     };
 
-    // Disconnect wallet (clear local state)
-    const handleDisconnectWallet = () => {
+    // Logout and disconnect wallet
+    const handleLogout = () => {
+        logout();
+        setAuthUser(null);
         setWalletAddress(null);
         setChainId(null);
-        alert('Wallet disconnected. To fully disconnect, please disconnect from MetaMask extension.');
+        alert('Logged out successfully');
     };
 
     const handleAddProduct = async (productData) => {
+        if (!authUser) {
+            alert('Please connect your wallet to add products');
+            return;
+        }
+
         try {
             // Add user ID to the product data
-            const sellerId = authUser?.user_id || telegramUser?.id || 1;
+            const sellerId = authUser.user_id;
             console.log('Creating product with seller_id:', sellerId);
-            console.log('authUser:', authUser);
-            console.log('telegramUser:', telegramUser);
 
             const listingData = {
                 ...productData,
                 seller_id: sellerId
             };
             await api.createListing(listingData);
-
 
             setShowAddForm(false);
             loadProducts(); // Refresh the product list
@@ -267,9 +220,9 @@ function App() {
             <div className="header">
                 <div className="header-left">
                     <h1>DeBazaar</h1>
-                    {telegramUser && (
+                    {authUser && walletAddress && (
                         <div className="user-info">
-                            Hi {telegramUser.first_name}!
+                            Connected: {formatAddress(walletAddress)}
                         </div>
                     )}
                 </div>
@@ -291,49 +244,51 @@ function App() {
                     </div>
                 </div>
                 <div className="header-right">
-                    {!walletAddress ? (
+                    {!authUser ? (
                         <button
                             className="login-btn"
                             onClick={handleConnectWallet}
                             disabled={isConnecting}
                         >
-                            {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+                            {isConnecting ? 'Connecting...' : 'Connect Wallet & Login'}
                         </button>
                     ) : (
-                        <div className="wallet-info">
-                            <span className="wallet-address">
-                                {formatAddress(walletAddress)}
-                            </span>
-                            {chainId && [42161, 421614].includes(chainId) && (
-                                <span className="network-badge">
-                                    {getNetworkName(chainId)}
+                        <>
+                            <div className="wallet-info">
+                                <span className="wallet-address">
+                                    {formatAddress(walletAddress)}
                                 </span>
-                            )}
-                            {chainId && ![42161, 421614].includes(chainId) && (
-                                <span className="network-badge-warning">
-                                    Wrong Network
-                                </span>
-                            )}
+                                {chainId && [42161, 421614].includes(chainId) && (
+                                    <span className="network-badge">
+                                        {getNetworkName(chainId)}
+                                    </span>
+                                )}
+                                {chainId && ![42161, 421614].includes(chainId) && (
+                                    <span className="network-badge-warning">
+                                        Wrong Network
+                                    </span>
+                                )}
+                                <button
+                                    className="disconnect-btn"
+                                    onClick={handleLogout}
+                                >
+                                    Logout
+                                </button>
+                            </div>
                             <button
-                                className="disconnect-btn"
-                                onClick={handleDisconnectWallet}
+                                className="my-products-btn"
+                                onClick={() => setShowMyProducts(true)}
                             >
-                                Disconnect
+                                My Products
                             </button>
-                        </div>
+                            <button
+                                className="sell-btn"
+                                onClick={() => setShowAddForm(true)}
+                            >
+                                Sell
+                            </button>
+                        </>
                     )}
-                    <button
-                        className="my-products-btn"
-                        onClick={() => setShowMyProducts(true)}
-                    >
-                        My Products
-                    </button>
-                    <button
-                        className="sell-btn"
-                        onClick={() => setShowAddForm(true)}
-                    >
-                        Sell
-                    </button>
                 </div>
             </div>
 
@@ -368,7 +323,6 @@ function App() {
             {showMyProducts && (
                 <MyProductsModal
                     onClose={() => setShowMyProducts(false)}
-                    telegramUser={telegramUser}
                     authUser={authUser}
                     onProductClick={handleWatchClick}
                 />

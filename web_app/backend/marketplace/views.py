@@ -12,9 +12,68 @@ from .serializers import (
     UserProfileSerializer, ListingSerializer, CreateListingSerializer,
     OrderSerializer, CreateOrderSerializer, DisputeSerializer,
     TelegramAuthSerializer, DepositSerializer, UploadFileSerializer,
-    PrivyAuthLinkSerializer
+    PrivyAuthLinkSerializer, WalletAuthSerializer
 )
 from .filters import ListingFilter
+from eth_account.messages import encode_defunct
+from web3 import Web3
+
+
+class WalletAuthView(generics.GenericAPIView, mixins.CreateModelMixin):
+    """Authenticate user via MetaMask wallet signature"""
+    serializer_class = WalletAuthSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        wallet_address = serializer.validated_data['wallet_address'].lower()
+        signature = serializer.validated_data['signature']
+        message = serializer.validated_data['message']
+
+        try:
+            # Verify the signature
+            w3 = Web3()
+            message_hash = encode_defunct(text=message)
+            recovered_address = w3.eth.account.recover_message(message_hash, signature=signature)
+
+            if recovered_address.lower() != wallet_address:
+                return Response({
+                    'success': False,
+                    'detail': 'Invalid signature'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+
+            # Get or create user with wallet address as username
+            username = f"user_{wallet_address[:8]}"
+            user, created = User.objects.get_or_create(
+                username=wallet_address,  # Use full wallet address as unique username
+                defaults={'first_name': username}
+            )
+
+            # Get or create profile
+            profile, _ = UserProfile.objects.get_or_create(
+                user=user,
+                defaults={'wallet_address': wallet_address}
+            )
+
+            # Update wallet address if it changed (shouldn't happen but safety check)
+            if profile.wallet_address != wallet_address:
+                profile.wallet_address = wallet_address
+                profile.save()
+
+            return Response({
+                'success': True,
+                'user_id': user.id,
+                'username': user.username,
+                'wallet_address': profile.wallet_address,
+                'created': created
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'detail': f'Signature verification failed: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class TelegramAuthView(APIView):
