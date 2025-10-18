@@ -52,6 +52,26 @@ const ProductDetailModal = ({ product, onClose }) => {
                                 }}>{product.payment_method === 'escrow' ? 'Using escrow' : 'Direct'}</span>
                             </div>
 
+                            {product.payment_method === 'escrow' && product.escrow_type && (
+                                <div className="product-detail-escrow-type" style={{ display: 'flex', gap: '8px', marginBottom: '20px', alignItems: 'center' }}>
+                                    <span className="escrow-type-label" style={{ fontSize: '14px', color: '#767676', fontWeight: '500' }}>Escrow Type:</span>
+                                    <span className="escrow-type-value" style={{
+                                        background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                                        color: '#ffffff',
+                                        padding: '6px 12px',
+                                        borderRadius: '12px',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        textTransform: 'capitalize',
+                                        boxShadow: '0 2px 4px rgba(0, 123, 255, 0.2)'
+                                    }}>
+                                        {product.escrow_type === 'api_approval' ? 'API Approval' :
+                                         product.escrow_type === 'onchain_approval' ? 'On-chain Approval' :
+                                         'Disputable'}
+                                    </span>
+                                </div>
+                            )}
+
                             {product.payment_method === 'direct' && product.seller_contact && showContact && (
                                 <div className="seller-contact-info" style={{
                                     background: '#f8f9fa',

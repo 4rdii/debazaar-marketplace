@@ -49,8 +49,13 @@ class Listing(models.Model):
         ('escrow', 'Using escrow'),
         ('direct', 'Direct'),
     ]
-    
-    
+
+    ESCROW_TYPE_CHOICES = [
+        ('disputable', 'Disputable'),
+        ('api_approval', 'API Approval'),
+        ('onchain_approval', 'On-chain Approval'),
+    ]
+
     seller = models.ForeignKey(User, on_delete=models.CASCADE, related_name='listings')
     title = models.CharField(max_length=200)
     description = models.TextField()
@@ -62,6 +67,7 @@ class Listing(models.Model):
     image_url = models.TextField(default='')
     image_cid = models.CharField(max_length=100, blank=True, null=True)
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='escrow')
+    escrow_type = models.CharField(max_length=20, choices=ESCROW_TYPE_CHOICES, blank=True, null=True, help_text="Type of escrow (only for escrow payment method)")
     seller_contact = models.CharField(max_length=200, blank=True, null=True, help_text="Contact info for direct payment method (email, telegram, etc)")
     listing_duration_days = models.IntegerField(default=30, help_text="Number of days the listing will be active")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')

@@ -9,6 +9,7 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         image_url: '',
         token_address: '0x0000000000000000000000000000000000000000',
         payment_method: 'escrow',
+        escrow_type: 'disputable',
         seller_contact: '',
         listing_duration_days: 30,
         seller_id: 1 // Mock seller ID
@@ -246,6 +247,20 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                             <option value="direct">Direct</option>
                         </select>
                     </div>
+
+                    {formData.payment_method === 'escrow' && (
+                        <div className="form-field-group">
+                            <label className="form-label">Escrow Type</label>
+                            <select name="escrow_type" value={formData.escrow_type} onChange={handleChange}>
+                                <option value="disputable">Disputable</option>
+                                <option value="api_approval">API Approval</option>
+                                <option value="onchain_approval">On-chain Approval</option>
+                            </select>
+                            <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                Choose the type of escrow mechanism for this listing
+                            </small>
+                        </div>
+                    )}
 
                     {formData.payment_method === 'direct' && (
                         <div className="form-field-group">

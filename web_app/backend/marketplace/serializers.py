@@ -28,7 +28,7 @@ class ListingSerializer(serializers.ModelSerializer):
         model = Listing
         fields = ['id', 'seller', 'title', 'description', 'price', 'currency',
                  'token_address', 'file_path', 'metadata_cid', 'image_url',
-                 'image_cid', 'payment_method', 'seller_contact',
+                 'image_cid', 'payment_method', 'escrow_type', 'seller_contact',
                  'listing_duration_days',
                  'status', 'seller_rating', 'is_expired', 'expires_at', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -48,7 +48,7 @@ class CreateListingSerializer(serializers.ModelSerializer):
         model = Listing
         fields = ['seller_id', 'title', 'description', 'price', 'currency',
                  'token_address', 'file_path', 'metadata_cid', 'image_url',
-                 'image_cid', 'payment_method', 'seller_contact',
+                 'image_cid', 'payment_method', 'escrow_type', 'seller_contact',
                  'listing_duration_days', 'status']
     
     def create(self, validated_data):
