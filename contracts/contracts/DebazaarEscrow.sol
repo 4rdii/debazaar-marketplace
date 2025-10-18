@@ -305,7 +305,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
      * @dev This function resolves the escrow to the buyer or seller based on the response.
      */
 
-    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) external { 
+    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) external nonReentrant { 
         bytes32 listingId = chainlinkRequestIdToListingId[requestId];
         Listing storage listing = s_listings[listingId];
         // Checks

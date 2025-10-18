@@ -12,6 +12,9 @@ import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
 import {IDebazaarArbiter} from "./interfaces/IDebazaarArbiter.sol";
 import {IDebazaarEscrow} from "./interfaces/IDebazaarEscrow.sol";
 
+/// @title Debazaar Arbiter
+/// @author 4rdii
+/// @notice This contract is used to arbitrate disputes between buyers and sellers
 contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer, Ownable {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
