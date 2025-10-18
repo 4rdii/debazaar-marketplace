@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatPriceWithCurrency } from '../utils/priceFormatter';
+import { formatAddress } from '../utils/metamask';
 
 const ProductCard = ({ product, onWatchClick }) => {
     return (
@@ -12,7 +13,7 @@ const ProductCard = ({ product, onWatchClick }) => {
                 <p className="product-description">{product.description}</p>
                 <div className="product-details">
                     <span className="product-price">{formatPriceWithCurrency(product.price, product.currency)}</span>
-                    <span className="product-seller">by {product.seller.username}</span>
+                    <span className="product-seller">by {formatAddress(product.seller.username)}</span>
                 </div>
                 <div className="product-meta">
                     <span className="product-rating">★ {product.seller_rating ? product.seller_rating.toFixed(1) : '0.0'}</span>

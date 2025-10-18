@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatPriceWithCurrency } from '../utils/priceFormatter';
 
 const ProductDetailModal = ({ product, onClose }) => {
+    const [showContact, setShowContact] = useState(false);
+
     if (!product) return null;
 
     return (
@@ -50,6 +52,26 @@ const ProductDetailModal = ({ product, onClose }) => {
                                 }}>{product.payment_method === 'escrow' ? 'Using escrow' : 'Direct'}</span>
                             </div>
 
+                            {product.payment_method === 'direct' && product.seller_contact && showContact && (
+                                <div className="seller-contact-info" style={{
+                                    background: '#f8f9fa',
+                                    border: '2px solid #e9ecef',
+                                    borderRadius: '8px',
+                                    padding: '16px',
+                                    marginBottom: '20px'
+                                }}>
+                                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
+                                        📞 Seller Contact
+                                    </h4>
+                                    <p style={{ margin: '0', fontSize: '14px', color: '#212529', wordBreak: 'break-word' }}>
+                                        {product.seller_contact}
+                                    </p>
+                                    <small style={{ display: 'block', marginTop: '8px', fontSize: '12px', color: '#6c757d' }}>
+                                        Contact the seller directly to complete the purchase
+                                    </small>
+                                </div>
+                            )}
+
 
                             {product.listing_duration_days && (
                                 <div className="product-detail-access">
@@ -66,7 +88,21 @@ const ProductDetailModal = ({ product, onClose }) => {
                         </div>
 
                         <div className="product-detail-actions">
-                            <button className="buy-button-large">Buy It Now</button>
+                            {product.payment_method === 'direct' ? (
+                                <button
+                                    className="buy-button-large"
+                                    onClick={() => setShowContact(!showContact)}
+                                >
+                                    {showContact ? 'Hide Contact' : 'Show Contact'}
+                                </button>
+                            ) : (
+                                <button
+                                    className="buy-button-large"
+                                    onClick={() => alert('Escrow purchase flow will be implemented with smart contract integration')}
+                                >
+                                    Buy It Now
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

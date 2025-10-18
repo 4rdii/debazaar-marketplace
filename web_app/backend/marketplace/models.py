@@ -62,6 +62,7 @@ class Listing(models.Model):
     image_url = models.TextField(default='')
     image_cid = models.CharField(max_length=100, blank=True, null=True)
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='escrow')
+    seller_contact = models.CharField(max_length=200, blank=True, null=True, help_text="Contact info for direct payment method (email, telegram, etc)")
     listing_duration_days = models.IntegerField(default=30, help_text="Number of days the listing will be active")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     is_deleted = models.BooleanField(default=False, help_text="Soft delete flag")

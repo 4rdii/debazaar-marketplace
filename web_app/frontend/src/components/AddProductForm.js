@@ -9,6 +9,7 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         image_url: '',
         token_address: '0x0000000000000000000000000000000000000000',
         payment_method: 'escrow',
+        seller_contact: '',
         listing_duration_days: 30,
         seller_id: 1 // Mock seller ID
     });
@@ -246,6 +247,22 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                         </select>
                     </div>
 
+                    {formData.payment_method === 'direct' && (
+                        <div className="form-field-group">
+                            <label className="form-label">Contact Information (Required for Direct Method)</label>
+                            <input
+                                type="text"
+                                name="seller_contact"
+                                placeholder="Email, Telegram (@username), or other contact method"
+                                value={formData.seller_contact}
+                                onChange={handleChange}
+                                required
+                            />
+                            <small style={{color: '#666', fontSize: '12px'}}>
+                                Buyers will see this to contact you directly
+                            </small>
+                        </div>
+                    )}
 
                     <div className="form-field-group">
                         <label className="form-label">Listing Duration</label>
