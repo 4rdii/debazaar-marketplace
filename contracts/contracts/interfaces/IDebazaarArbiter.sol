@@ -18,6 +18,14 @@ interface IDebazaarArbiter {
         Resolved
     }
 
+    struct Permit {
+        bytes32 listingId;
+        bool toBuyer;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     struct DisputedListing {
         bytes32 randomness;
         uint64 sequenceNumber;
@@ -35,7 +43,7 @@ interface IDebazaarArbiter {
     error RandomnessNotReceived();
     error InvalidState();
     error AlreadyVoted();
-
+    error InvalidPermitLength();
     // ========= Events =========
 
     event ArbiterAdded(address indexed arbiter);
