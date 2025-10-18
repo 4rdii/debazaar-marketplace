@@ -1,0 +1,10 @@
+# Option 1: Use pre-built image from Docker Hub (faster, recommended)
+# This image has Cloudflare DNS plugin already compiled
+FROM slothcroissant/caddy-cloudflaredns:latest
+
+# Option 2: If you need to build yourself, use this multi-stage build
+# Uncomment below and comment above if Option 1 doesn't work:
+# FROM caddy:builder AS builder
+# RUN xcaddy build --with github.com/caddy-dns/cloudflare
+# FROM caddy:2.7-alpine
+# COPY --from=builder /usr/bin/caddy /usr/bin/caddy

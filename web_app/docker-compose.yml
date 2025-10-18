@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: crypto_marketplace
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - marketplace_network
+
+  web:
+    build: ./backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres123@db:5432/crypto_marketplace
+      - DEBUG=1
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - SECRET_KEY=${SECRET_KEY}
+      # - PRIVY_APP_ID=${PRIVY_APP_ID}
+      # - PRIVY_APP_SECRET=${PRIVY_APP_SECRET}
+    networks:
+      - marketplace_network
+
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      - web
+    networks:
+      - marketplace_network
+
+  frontend:
+    container_name: crypto_marketplace_frontend
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=https://api.debazaar.click/api
+      # - REACT_APP_PRIVY_APP_ID=${REACT_APP_PRIVY_APP_ID}
+      # - REACT_APP_PRIVY_CLIENT_ID=${REACT_APP_PRIVY_CLIENT_ID}
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_API_URL: https://api.debazaar.click/api
+        # REACT_APP_PRIVY_APP_ID: ${REACT_APP_PRIVY_APP_ID}
+        # REACT_APP_PRIVY_CLIENT_ID: ${REACT_APP_PRIVY_CLIENT_ID}
+    depends_on:
+      - web
+    networks:
+      - marketplace_network
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  marketplace_network:
+    driver: bridge

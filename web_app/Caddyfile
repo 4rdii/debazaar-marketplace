@@ -1,0 +1,15 @@
+
+debazaar.click api.debazaar.click {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+
+    @api host api.debazaar.click
+    handle @api {
+        reverse_proxy web:8000
+    }
+
+    handle {
+        reverse_proxy frontend:80
+    }
+}
