@@ -32,7 +32,7 @@ const config: HardhatUserConfig = {
       type: "edr-simulated",
       chainType: "op",
     },
-    "arbitrumSepolia": {
+    arbitrumSepolia: {
       type: "http",
       chainType: "op",
       url: process.env.ARBITRUM_SEPOLIA_RPC_URL as SensitiveString,
@@ -43,6 +43,19 @@ const config: HardhatUserConfig = {
   verify: {
     etherscan: {
       apiKey: process.env.ETHERSCAN_V2_API_KEY || "",
+    },
+  },
+  chainDescriptors: {
+    // Arbitrum Sepolia chain
+    421614: {
+      name: "Arbitrum Sepolia",
+      blockExplorers: {
+        etherscan: {
+          name: "Arbitrum Sepolia Scan",
+          url: "https://sepolia.arbiscan.io",
+          apiUrl: "https://api.etherscan.io/v2/api",
+        },
+      },
     },
   },
 };
