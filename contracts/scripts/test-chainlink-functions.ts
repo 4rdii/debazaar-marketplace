@@ -19,8 +19,8 @@ async function main() {
   const escrow = await ethers.getContractAt("DebazaarEscrow", contractAddresses.debazaarEscrow);
   
   // LINK token setup
-  const LINK_TOKEN_ADDRESS = "0xb1D4538B4571d411F07960EF2838Ce337FE1E80E";
-  const listingPrice = ethers.parseUnits("1", 15); // 0.001 LINK
+  const TestToken = "0xC9C401E0094B2d3d796Ed074b023551038b84F07";
+  const listingPrice = ethers.parseUnits("1", 15); // 0.001 TestToken
   
   // ERC20 ABI
   const erc20Abi = [
@@ -30,7 +30,7 @@ async function main() {
     "function allowance(address owner, address spender) view returns (uint256)"
   ];
   
-  const linkContract = new ethers.Contract(LINK_TOKEN_ADDRESS, erc20Abi, deployer);
+  const testTokenContract = new ethers.Contract(TestToken, erc20Abi, deployer);
   
   // Chainlink Functions parameters
   const subscriptionId = parseInt(process.env.CHAINLINK_FUNCTIONS_SUBSCRIPTION_ID || "518");
@@ -110,7 +110,7 @@ if (btcPrice < 1000) {
   // // 1. Create Listing
   const createTx = await escrow.connect(deployer).createListing(
     listingId,
-    LINK_TOKEN_ADDRESS,
+    TestToken,
     listingPrice,
     expiration,
     0 // EscrowType.API_APPROVAL
@@ -118,11 +118,15 @@ if (btcPrice < 1000) {
   await createTx.wait();
   console.log("createTx", createTx);
 
-  // 2. Fill Listing
-  const approveTx = await linkContract.approve(contractAddresses.debazaarEscrow, listingPrice);
+  const mintTestTokenTx = await testTokenContract.mint(deployer.address, listingPrice);
+  await mintTestTokenTx.wait();
+  console.log("mintTestTokenTx", mintTestTokenTx);
+  
+  const approveTx = await testTokenContract.approve(contractAddresses.debazaarEscrow, listingPrice);
   await approveTx.wait();
   console.log("approveTx", approveTx);
   
+  // 2. Fill Listing
   const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
   const fillTx = await escrow.connect(deployer).fillListing(listingId, deadline, extraData);
   await fillTx.wait();
