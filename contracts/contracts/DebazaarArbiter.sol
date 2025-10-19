@@ -11,14 +11,19 @@ import {IEntropyConsumer} from "@pythnetwork/entropy-sdk-solidity/IEntropyConsum
 import {IEntropyV2} from "@pythnetwork/entropy-sdk-solidity/IEntropyV2.sol";
 import {IDebazaarArbiter} from "./interfaces/IDebazaarArbiter.sol";
 import {IDebazaarEscrow} from "./interfaces/IDebazaarEscrow.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer, Ownable {
+/// @title Debazaar Arbiter
+/// @author 4rdii
+/// @notice This contract is used to arbitrate disputes between buyers and sellers
+contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer, Ownable, EIP712 {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     // ========= State Variables =========
     uint256 public constant ARBITERS_PER_LISTING = 3;
+    bytes32 private constant PERMIT_TYPEHASH = keccak256("Permit(bytes32 listingId,bool toBuyer)");
 
     address private s_debazaarEscrow;
     IEntropyV2 private s_entropyV2;
@@ -30,7 +35,10 @@ contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer,
     //sequenceNumber => listingId
     mapping(uint64 => bytes32) private s_sequenceNumberToListingId;
 
-    constructor(address _owner, address[] memory _InitialArbitrators, address _entropyV2) Ownable(_owner) {
+    constructor(address _owner, address[] memory _InitialArbitrators, address _entropyV2)
+        Ownable(_owner)
+        EIP712("DebazaarArbiter", "1")
+    {
         if (_owner == address(0) || _entropyV2 == address(0)) revert ZeroAddress();
         s_entropyV2 = IEntropyV2(_entropyV2);
         if (_InitialArbitrators.length > 0) {
@@ -75,6 +83,44 @@ contract DebazaarArbiter is IDebazaarArbiter, ReentrancyGuard, IEntropyConsumer,
         emit VoteCast(_listingId, msg.sender, _toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER);
 
         // Check if the listing is resolved and call escrow.resolveListing
+        if (disputedListing.votesForBuyer >= ARBITERS_PER_LISTING / 2 + 1) {
+            disputedListing.state = State.Resolved;
+            IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, true);
+            emit ListingsResolved(_listingId, true);
+        } else if (disputedListing.votesForSeller >= ARBITERS_PER_LISTING / 2 + 1) {
+            disputedListing.state = State.Resolved;
+            IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, false);
+            emit ListingsResolved(_listingId, false);
+        }
+    }
+
+    /// @notice Resolves a listing using signed permits from arbiters
+    /// @param _listingId The listing ID to resolve
+    /// @param _permits Array of permits in the SAME ORDER as selected arbiters
+    /// @dev Permits must be provided in the exact order of arbiters.at(0), arbiters.at(1), etc.
+    function resolveListingPermit(bytes32 _listingId, Permit[] memory _permits) external nonReentrant {
+        DisputedListing storage disputedListing = s_disputedListings[_listingId];
+
+        // Checks
+        if (disputedListing.randomness == bytes32(0)) revert RandomnessNotReceived();
+        if (disputedListing.state != State.Disputed) revert InvalidState();
+        if (_permits.length > ARBITERS_PER_LISTING) revert InvalidPermitLength();
+
+        for (uint256 i = 0; i < _permits.length; i++) {
+            bytes32 hash =
+                _hashTypedDataV4(keccak256(abi.encode(PERMIT_TYPEHASH, _permits[i].listingId, _permits[i].toBuyer)));
+            address signer = ecrecover(hash, _permits[i].v, _permits[i].r, _permits[i].s);
+            if (disputedListing.arbiters.at(i) != signer) revert UnAuthorized();
+            if (disputedListing.votes[signer] != Vote.NOT_VOTED) revert AlreadyVoted();
+            disputedListing.votes[signer] = _permits[i].toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER;
+            if (_permits[i].toBuyer) {
+                disputedListing.votesForBuyer++;
+            } else {
+                disputedListing.votesForSeller++;
+            }
+            emit VoteCast(_listingId, signer, _permits[i].toBuyer ? Vote.FOR_BUYER : Vote.FOR_SELLER);
+        }
+
         if (disputedListing.votesForBuyer >= ARBITERS_PER_LISTING / 2 + 1) {
             disputedListing.state = State.Resolved;
             IDebazaarEscrow(s_debazaarEscrow).resolveListing(_listingId, true);

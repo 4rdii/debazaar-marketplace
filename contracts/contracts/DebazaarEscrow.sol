@@ -304,8 +304,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
      * @dev This function is only callable by the functions consumer.
      * @dev This function resolves the escrow to the buyer or seller based on the response.
      */
-
-    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) external { 
+    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) external nonReentrant {
         bytes32 listingId = chainlinkRequestIdToListingId[requestId];
         Listing storage listing = s_listings[listingId];
         // Checks
@@ -314,7 +313,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         if (block.timestamp > listing.deadline) revert BeforeDeadline();
         if (err.length > 0) {
             emit DeBazaar__ApiReturnedAnError(listingId, err);
-            return; 
+            return;
         }
         // Effects
         // Interactions
@@ -379,7 +378,6 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     function getFunctionsConsumer() external view returns (address) {
         return s_functionsConsumer;
     }
-
 
     function getApiApprovalData(bytes32 _listingId) external view returns (ApiApprovalData memory) {
         Listing storage listing = s_listings[_listingId];

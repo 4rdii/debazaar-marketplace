@@ -1,9 +1,17 @@
 {
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:arbitrum-sepolia": "hardhat ignition deploy ./ignition/modules/ArbitrumSepoliaDeployment.ts --network arbitrum-sepolia",
+    "verify:arbitrum-sepolia": "hardhat run scripts/verify-contracts.ts --network arbitrum-sepolia",
+    "update-addresses": "hardhat run scripts/update-addresses.ts",
+    "check-deployment": "hardhat ignition status --network arbitrum-sepolia"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.2",
     "@nomicfoundation/hardhat-ethers-chai-matchers": "^3.0.0",
-    "@nomicfoundation/hardhat-ignition": "^3.0.0",
-    "@nomicfoundation/hardhat-ignition-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-ignition": "^3.0.3",
+    "@nomicfoundation/hardhat-ignition-ethers": "^3.0.3",
     "@nomicfoundation/hardhat-keystore": "^3.0.0",
     "@nomicfoundation/hardhat-mocha": "^3.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^3.0.1",
@@ -27,6 +35,7 @@
     "@chainlink/contracts": "^1.5.0",
     "@openzeppelin/contracts": "^5.4.0",
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
-    "@pythnetwork/entropy-sdk-solidity": "^2.0.0"
+    "@pythnetwork/entropy-sdk-solidity": "^2.0.0",
+    "dotenv": "^17.2.3"
   }
 }

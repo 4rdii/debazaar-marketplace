@@ -98,4 +98,5 @@ interface IDebazaarEscrow {
 
     // ========= Functions =========
     function resolveListing(bytes32 _listingId, bool _toBuyer) external;
+    function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) external;
 }
