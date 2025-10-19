@@ -321,13 +321,11 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
             // Decode the response as uint256
             uint256 responseValue = abi.decode(response, (uint256));
             if (responseValue == 1) {
-                // BTC price > 1000, resolve to buyer (refund)
-                this.resolveListing(listingId, true);
-                listing.state = State.Released;
-                emit DeBazaar__Released(listingId);
+                // BTC price > 1000, resolve to seller (release funds)
+                this.resolveListing(listingId, false);
             } else {
-                // BTC price <= 1000, resolve to seller (release funds)
-                emit DeBazaar__ApiReturnedFalse(listingId);
+                // BTC price <= 1000, resolve to buyer (refund)
+                this.resolveListing(listingId, true);
             }
         } else {
             // No response, resolve to buyer (refund)

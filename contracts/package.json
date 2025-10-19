@@ -2,10 +2,9 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy:arbitrum-sepolia": "hardhat ignition deploy ./ignition/modules/ArbitrumSepoliaDeployment.ts --network arbitrum-sepolia",
-    "verify:arbitrum-sepolia": "hardhat run scripts/verify-contracts.ts --network arbitrum-sepolia",
-    "update-addresses": "hardhat run scripts/update-addresses.ts",
-    "check-deployment": "hardhat ignition status --network arbitrum-sepolia"
+    "deploy:arbitrumSepolia": "hardhat ignition deploy ./ignition/modules/ArbitrumSepoliaDeployment.ts --network arbitrumSepolia --verify",
+    "check-deployment": "hardhat ignition status --network arbitrumSepolia",
+    "test:chainlink-functions": "hardhat run scripts/test-chainlink-functions.ts --network arbitrumSepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.2",
