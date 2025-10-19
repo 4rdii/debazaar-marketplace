@@ -4,10 +4,10 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {DebazaarEscrow} from "../contracts/DebazaarEscrow.sol";
 import {DebazaarArbiter} from "../contracts/DebazaarArbiter.sol";
-import {MockERC20} from "./MockERC20.sol";
-import {MockEntropyV2} from "./MockEntropyV2.sol";
-import {MockERC721} from "./MockERC721.sol";
-import {MockMulticall3} from "./MockMulticall3.sol";
+import {MockERC20} from "../contracts/mocks/MockERC20.sol";
+import {MockEntropyV2} from "../contracts/mocks/MockEntropyV2.sol";
+import {MockERC721} from "../contracts/mocks/MockERC721.sol";
+import {MockMulticall3} from "../contracts/mocks/MockMulticall3.sol";
 import {IDebazaarEscrow} from "../contracts/interfaces/IDebazaarEscrow.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 

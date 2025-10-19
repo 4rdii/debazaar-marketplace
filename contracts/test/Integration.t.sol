@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import {TestBase} from "./TestBase.sol";
 import {Vm} from "forge-std/Vm.sol";
-import {MockMulticall3} from "./MockMulticall3.sol";
+import {MockMulticall3} from "../contracts/mocks/MockMulticall3.sol";
 
 import {IDebazaarEscrow} from "../contracts/interfaces/IDebazaarEscrow.sol";
 
