@@ -39,26 +39,39 @@ States: Open → Filled → Delivered → Released/Refunded (or Canceled/Dispute
       - A random list of Arbiters are selected and Backend is notified with this list; Arbiters are added to the Telegram group.
       - Buyer and Seller provide their own evidence; Arbiters decide who is right.
       - Arbiters call `resolveListing(listingId, toBuyer)` of Arbitration contract, which calls `resolveListing(listingId, toBuyer)` of the Escrow contract.
-    - Emits DeBazaar__Released (to seller) or DeBazaar__Refunded (to buyer)
+    - Emits `DeBazaar__Released` (to seller) or `DeBazaar__Refunded` (to buyer).
 
 ---
 
-### 2) API_APPROVAL flow (Chainlink Functions)
+## 2) API_APPROVAL flow (Chainlink Functions)
+
+### The Flow 
 - extraData: `ApiApprovalData` encoded as tuple
-  - source (JS), encryptedSecretsUrls (bytes), args (string[]), bytesArgs (bytes[]), requestId (bytes32)
-  - On fill, the escrow stores the API data and clears the requestId (will be set on delivery)
-- Delivery: seller calls
-  - `deliverApiApprovalListing(listingId, donHostedSecretsSlotID, donHostedSecretsVersion, subscriptionId, gasLimit, donID)`
-  - Emits DeBazaar__ApiApprovalRequested and DeBazaar__Delivered
-- Fulfillment: `FunctionsConsumerDebazaarUpgradeable` calls `fulfillRequest(requestId, response, err)` back to escrow
-  - If response decodes to 1 → refund to buyer; else → release to seller
+  - source (JS), `encryptedSecretsUrls (bytes)`, args `(string[]), bytesArgs (bytes[]), requestId (bytes32)`.
+  - On fill, the escrow stores the API data and clears the requestId (will be set on delivery).
+- Full Flow:
 
-Environment variables typically needed for the API flow:
-- CHAINLINK_FUNCTIONS_SUBSCRIPTION_ID
-- CHAINLINK_DON_ID_ARB_SEPOLIA
-- ARBITRUM_SEPOLIA_RPC_URL, PRIVATE_KEY (funded)
+  ![Disputable Flow](./assets/Centralized-with-API-Settlement-and-Oracle.svg)
+    - Seller creates an escrow listing and emits `DeBazaar__ListingCreated`
+    - After the negotiation phase, Buyer locks funds in the Escrow using `fillListing()`.
+    - After Seller transferred assets off-chain (e.g., a rare skin in a game), he calls `deliverApiApprovalListing(listingId, donHostedSecretsSlotID, donHostedSecretsVersion, subscriptionId, gasLimit, donID)` on the Escrow contract.
+    - This call on the Escrow contract calls the `sendRequest()` on `FunctionsConsumerDebazaarUpgradeable` which is a ChainLink's [`FunctionClient`](https://github.com/smartcontractkit/chainlink-brownie-contracts/blob/main/contracts/src/v0.8/functions/v1_0_0/FunctionsClient.sol).
+    - ChainLink queries the API of the asset centralized provider (e.g., the gaming company), and after getting the `response` calls `fullfillRequest(linstingId, response, err)`.
+    - Happy Path:
+      - Escrow unlocks the fund and fee using `resolveListing(listingId, toBuyer: false)`.
+    - Unhappy Paths:
+      - Seller has not sent the asset:
+        - Escrow refunds the fund  back to the Buyer using `resolveListing(listingId, toBuyer: true)`.
+      - Deadline is passed:
+        - Buyer calls `cancelListingByBuyer(listingId)` and Escrow refunds the locked fund back to Buyer.
+    - Emits `DeBazaar__Released` (to seller) or `DeBazaar__Refunded` (to buyer).
 
-How to run the sample API flow script:
+### Environment variables typically needed for the API flow:
+- `CHAINLINK_FUNCTIONS_SUBSCRIPTION_ID`
+- `CHAINLINK_DON_ID_ARB_SEPOLIA`
+- `ARBITRUM_SEPOLIA_RPC_URL, PRIVATE_KEY` (funded)
+
+### How to run the sample API flow script:
 - Uses `contracts/scripts/test-chainlink-functions.ts`
 - Update LINK token allowance and ensure subscription exists/funded
 - Command:
