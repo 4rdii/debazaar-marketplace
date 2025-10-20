@@ -12,11 +12,18 @@ from .serializers import (
     UserProfileSerializer, ListingSerializer, CreateListingSerializer,
     OrderSerializer, CreateOrderSerializer, DisputeSerializer,
     TelegramAuthSerializer, DepositSerializer, UploadFileSerializer,
-    PrivyAuthLinkSerializer, WalletAuthSerializer
+    PrivyAuthLinkSerializer, WalletAuthSerializer,
+    CreateListingTransactionSerializer, ConfirmTransactionSerializer,
+    BlockchainListingSerializer, ApproveTokenTransactionSerializer,
+    PurchaseListingTransactionSerializer, AcceptDeliveryTransactionSerializer,
+    DisputeListingTransactionSerializer, DeliverListingTransactionSerializer,
+    CreateOrderTransactionSerializer
 )
+from web3 import Web3
 from .filters import ListingFilter
 from eth_account.messages import encode_defunct
-from web3 import Web3
+from .blockchain.transaction_builder import transaction_builder
+from .blockchain.config import get_token_address
 
 
 class WalletAuthView(generics.GenericAPIView, mixins.CreateModelMixin):
@@ -359,4 +366,613 @@ class UploadFileView(APIView):
                 'size': len(file_content)
             }, status=status.HTTP_200_OK)
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# ==================== BLOCKCHAIN TRANSACTION ENDPOINTS ====================
+
+class CreateListingTransactionView(generics.GenericAPIView):
+    """
+    Build unsigned transaction for creating a listing on blockchain
+
+    POST /api/listings/create-transaction/
+    Request: CreateListingTransactionSerializer
+    Response: transaction data + listing info
+    """
+    serializer_class = CreateListingTransactionSerializer
+
+    def post(self, request, *args, **kwargs):
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Get seller user
+        seller_wallet = data['seller_wallet']
+        user = User.objects.filter(username=seller_wallet).first()
+        if not user:
+            return Response({
+                'error': 'User not found. Please authenticate first.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate unique listing ID
+        listing_id = transaction_builder.generate_listing_id(
+            seller_wallet,
+            data['title']
+        )
+
+        # Calculate blockchain expiration timestamp
+        blockchain_expiration = transaction_builder.calculate_expiration_timestamp(
+            data['listing_duration_days']
+        )
+
+        # Get token address
+        token_address = get_token_address(data['currency'])
+        if not token_address:
+            return Response({
+                'error': f"Token {data['currency']} not supported"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create listing in database with pending status
+        listing = Listing.objects.create(
+            seller=user,
+            title=data['title'],
+            description=data['description'],
+            price=data['price'],
+            currency=data['currency'],
+            token_address=token_address,
+            image_url=data.get('image_url', ''),
+            payment_method='escrow',
+            escrow_type=data['escrow_type'],
+            listing_duration_days=data['listing_duration_days'],
+            status='inactive',  # Inactive until blockchain confirmation
+            blockchain_listing_id=listing_id,
+            blockchain_status='pending_tx',
+            blockchain_expiration=blockchain_expiration
+        )
+
+        # Build unsigned transaction
+        transaction = transaction_builder.build_create_listing_transaction(
+            listing_id=listing_id,
+            token_symbol=data['currency'],
+            amount_in_tokens=float(data['price']),
+            expiration_timestamp=blockchain_expiration,
+            escrow_type=data['escrow_type'],
+            from_address=seller_wallet
+        )
+
+        return Response({
+            'success': True,
+            'listing_id': listing_id,
+            'db_listing_id': listing.id,
+            'blockchain_expiration': blockchain_expiration,
+            'transaction': transaction,
+            'message': 'Transaction ready. Please sign with your wallet.'
+        }, status=status.HTTP_200_OK)
+
+
+class ConfirmListingTransactionView(generics.GenericAPIView):
+    """
+    Confirm that listing creation transaction was sent to blockchain
+
+    POST /api/listings/{pk}/confirm-transaction/
+    Request: ConfirmTransactionSerializer
+    Response: confirmation status
+    """
+    serializer_class = ConfirmTransactionSerializer
+    queryset = Listing.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get listing
+        listing = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tx_hash = serializer.validated_data['tx_hash']
+
+        # Update listing with transaction hash
+        listing.creation_tx_hash = tx_hash
+        listing.blockchain_status = 'pending_confirmation'
+        listing.save()
+
+        return Response({
+            'success': True,
+            'message': 'Transaction submitted. Waiting for confirmation...',
+            'tx_hash': tx_hash,
+            'listing_id': listing.id
+        }, status=status.HTTP_200_OK)
+
+
+class FinalizeListingView(generics.GenericAPIView):
+    """
+    Finalize listing after blockchain confirmation
+
+    POST /api/listings/{pk}/finalize/
+    Request: none
+    Response: finalized listing data
+    """
+    serializer_class = BlockchainListingSerializer
+    queryset = Listing.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get listing
+        listing = self.get_object()
+
+        # TODO: Verify transaction was actually mined on blockchain
+        # For now, we'll trust the frontend
+
+        # Activate the listing
+        listing.status = 'active'
+        listing.blockchain_status = 'confirmed'
+        listing.save()
+
+        # Return serialized listing data
+        serializer = self.get_serializer(listing)
+
+        return Response({
+            'success': True,
+            'message': 'Listing successfully created on blockchain!',
+            'listing': serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+# ==================== BUYER TRANSACTION ENDPOINTS ====================
+
+class ApproveTokenTransactionView(generics.GenericAPIView):
+    """
+    Build unsigned transaction for ERC20 token approval
+
+    POST /api/orders/approve-token-transaction/
+    Request: ApproveTokenTransactionSerializer
+    Response: unsigned approve transaction
+    """
+    serializer_class = ApproveTokenTransactionSerializer
+
+    def post(self, request, *args, **kwargs):
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Get listing
+        try:
+            listing = Listing.objects.get(id=data['listing_id'])
+        except Listing.DoesNotExist:
+            return Response({
+                'error': 'Listing not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Build approval transaction
+        try:
+            transaction = transaction_builder.build_approve_token_transaction(
+                token_symbol=listing.currency,
+                amount_in_tokens=float(listing.price),
+                from_address=data['buyer_wallet']
+            )
+
+            return Response({
+                'success': True,
+                'transaction': transaction,
+                'token_symbol': listing.currency,
+                'amount': float(listing.price),
+                'message': 'Approve transaction ready. Please sign with your wallet.'
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'error': f'Failed to build transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PurchaseListingTransactionView(generics.GenericAPIView):
+    """
+    Build unsigned transaction for purchasing (fillListing)
+
+    POST /api/orders/purchase-transaction/
+    Request: PurchaseListingTransactionSerializer
+    Response: unsigned fillListing transaction + order info
+    """
+    serializer_class = PurchaseListingTransactionSerializer
+
+    def post(self, request, *args, **kwargs):
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Get listing
+        try:
+            listing = Listing.objects.get(id=data['listing_id'], status='active')
+        except Listing.DoesNotExist:
+            return Response({
+                'error': 'Active listing not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Get buyer user
+        buyer_wallet = data['buyer_wallet']
+        buyer_user = User.objects.filter(username=buyer_wallet).first()
+        if not buyer_user:
+            return Response({
+                'error': 'Buyer user not found. Please authenticate first.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Check buyer is not the seller
+        if buyer_user == listing.seller:
+            return Response({
+                'error': 'Cannot purchase your own listing'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Calculate deadline timestamp
+        deadline_timestamp = transaction_builder.calculate_deadline_timestamp(
+            data['deadline_days']
+        )
+
+        # Create Order in database with pending status
+        from datetime import datetime, timedelta
+        order_id = '0x' + hashlib.sha256(
+            f"{listing.blockchain_listing_id}_{buyer_wallet}_{datetime.now()}".encode()
+        ).hexdigest()
+
+        order = Order.objects.create(
+            order_id=order_id,
+            listing=listing,
+            buyer=buyer_user,
+            seller=listing.seller,
+            amount=listing.price,
+            token_address=listing.token_address,
+            status='created',  # Will update to 'paid' after tx confirmation
+            deadline=datetime.fromtimestamp(deadline_timestamp)
+        )
+
+        # Build fillListing transaction
+        try:
+            transaction = transaction_builder.build_fill_listing_transaction(
+                listing_id=listing.blockchain_listing_id,
+                deadline_timestamp=deadline_timestamp,
+                from_address=buyer_wallet,
+                extra_data=b''  # Empty for disputable listings
+            )
+
+            return Response({
+                'success': True,
+                'order_id': order.id,
+                'blockchain_order_id': order_id,
+                'deadline_timestamp': deadline_timestamp,
+                'transaction': transaction,
+                'message': 'Purchase transaction ready. Please sign with your wallet.'
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            # Delete the order if transaction building failed
+            order.delete()
+            return Response({
+                'error': f'Failed to build transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ConfirmPurchaseView(generics.GenericAPIView):
+    """
+    Confirm purchase transaction was sent
+
+    POST /api/orders/{pk}/confirm-purchase/
+    Request: ConfirmTransactionSerializer
+    Response: confirmation status
+    """
+    serializer_class = ConfirmTransactionSerializer
+    queryset = Order.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get order
+        order = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tx_hash = serializer.validated_data['tx_hash']
+
+        # Update order with transaction hash
+        order.escrow_tx_hash = tx_hash
+        order.status = 'paid'
+        order.save()
+
+        # Update listing status to sold
+        order.listing.status = 'sold'
+        order.listing.save()
+
+        return Response({
+            'success': True,
+            'message': 'Purchase confirmed! Waiting for seller delivery...',
+            'tx_hash': tx_hash,
+            'order_id': order.id
+        }, status=status.HTTP_200_OK)
+
+
+# ==================== SELLER TRANSACTION ENDPOINTS ====================
+
+class DeliverListingTransactionView(generics.GenericAPIView):
+    """
+    Build unsigned transaction for delivery (deliverDisputableListing)
+
+    POST /api/orders/{pk}/deliver-transaction/
+    Request: DeliverListingTransactionSerializer
+    Response: unsigned delivery transaction
+    """
+    serializer_class = DeliverListingTransactionSerializer
+    queryset = Order.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get order
+        order = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Verify seller
+        seller_wallet = data['seller_wallet']
+        if order.seller.username != seller_wallet:
+            return Response({
+                'error': 'Only the seller can mark as delivered'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Check order status
+        if order.status != 'paid':
+            return Response({
+                'error': f'Cannot deliver order in status: {order.status}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Build delivery transaction
+        try:
+            transaction = transaction_builder.build_deliver_disputable_transaction(
+                listing_id=order.listing.blockchain_listing_id,
+                from_address=seller_wallet
+            )
+
+            return Response({
+                'success': True,
+                'transaction': transaction,
+                'message': 'Delivery transaction ready. Please sign with your wallet.'
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'error': f'Failed to build transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ConfirmDeliveryTransactionView(generics.GenericAPIView):
+    """
+    Confirm delivery transaction was sent
+
+    POST /api/orders/{pk}/confirm-delivery-transaction/
+    Request: ConfirmTransactionSerializer
+    Response: confirmation status
+    """
+    serializer_class = ConfirmTransactionSerializer
+    queryset = Order.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get order
+        order = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tx_hash = serializer.validated_data['tx_hash']
+
+        # Update order status
+        order.status = 'delivered'
+        order.save()
+
+        return Response({
+            'success': True,
+            'message': 'Delivery confirmed! Waiting for buyer acceptance...',
+            'tx_hash': tx_hash,
+            'order_id': order.id
+        }, status=status.HTTP_200_OK)
+
+
+# ==================== BUYER ACCEPTANCE/DISPUTE ENDPOINTS ====================
+
+class AcceptDeliveryTransactionView(generics.GenericAPIView):
+    """
+    Build unsigned transaction for accepting delivery (resolveListing)
+
+    POST /api/orders/{pk}/accept-transaction/
+    Request: AcceptDeliveryTransactionSerializer
+    Response: unsigned acceptance transaction
+    """
+    serializer_class = AcceptDeliveryTransactionSerializer
+    queryset = Order.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get order
+        order = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Verify buyer
+        buyer_wallet = data['buyer_wallet']
+        if order.buyer.username != buyer_wallet:
+            return Response({
+                'error': 'Only the buyer can accept delivery'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Check order status
+        if order.status != 'delivered':
+            return Response({
+                'error': f'Cannot accept order in status: {order.status}. Must be delivered first.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Build resolve transaction (to_buyer=False means release to seller)
+        try:
+            transaction = transaction_builder.build_resolve_listing_transaction(
+                listing_id=order.listing.blockchain_listing_id,
+                to_buyer=False,  # Release funds to seller
+                from_address=buyer_wallet
+            )
+
+            return Response({
+                'success': True,
+                'transaction': transaction,
+                'message': 'Accept delivery transaction ready. Please sign with your wallet.'
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'error': f'Failed to build transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ConfirmAcceptanceView(generics.GenericAPIView):
+    """
+    Confirm acceptance transaction was sent
+
+    POST /api/orders/{pk}/confirm-acceptance/
+    Request: ConfirmTransactionSerializer
+    Response: confirmation status
+    """
+    serializer_class = ConfirmTransactionSerializer
+    queryset = Order.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get order
+        order = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tx_hash = serializer.validated_data['tx_hash']
+
+        # Update order status to completed
+        order.status = 'completed'
+        order.save()
+
+        return Response({
+            'success': True,
+            'message': 'Delivery accepted! Funds released to seller.',
+            'tx_hash': tx_hash,
+            'order_id': order.id
+        }, status=status.HTTP_200_OK)
+
+
+class DisputeListingTransactionView(generics.GenericAPIView):
+    """
+    Build unsigned transaction for disputing (disputeListing)
+
+    POST /api/orders/{pk}/dispute-transaction/
+    Request: DisputeListingTransactionSerializer
+    Response: unsigned dispute transaction with entropy fee
+    """
+    serializer_class = DisputeListingTransactionSerializer
+    queryset = Order.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get order
+        order = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Verify user is buyer or seller
+        wallet_address = data['wallet_address']
+        if wallet_address not in [order.buyer.username, order.seller.username]:
+            return Response({
+                'error': 'Only buyer or seller can dispute this order'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Check order status
+        if order.status not in ['delivered', 'paid']:
+            return Response({
+                'error': f'Cannot dispute order in status: {order.status}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get entropy fee from contract
+        try:
+            entropy_fee = transaction_builder.get_entropy_fee()
+        except Exception as e:
+            entropy_fee = int(0.001 * 10**18)  # Fallback: 0.001 ETH
+
+        # Build dispute transaction
+        try:
+            transaction = transaction_builder.build_dispute_listing_transaction(
+                listing_id=order.listing.blockchain_listing_id,
+                entropy_fee_wei=entropy_fee,
+                from_address=wallet_address
+            )
+
+            # Convert entropy fee to ETH for display
+            entropy_fee_eth = entropy_fee / 10**18
+
+            return Response({
+                'success': True,
+                'transaction': transaction,
+                'entropy_fee_wei': entropy_fee,
+                'entropy_fee_eth': entropy_fee_eth,
+                'message': f'Dispute transaction ready. Entropy fee: {entropy_fee_eth} ETH. Please sign with your wallet.'
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'error': f'Failed to build transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ConfirmDisputeView(generics.GenericAPIView):
+    """
+    Confirm dispute transaction was sent
+
+    POST /api/orders/{pk}/confirm-dispute/
+    Request: ConfirmTransactionSerializer
+    Response: confirmation status
+    """
+    serializer_class = ConfirmTransactionSerializer
+    queryset = Order.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get order
+        order = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tx_hash = serializer.validated_data['tx_hash']
+
+        # Update order status to disputed
+        order.status = 'disputed'
+        order.save()
+
+        # Create Dispute record
+        # Determine initiator from request (should be passed in body)
+        initiator_wallet = request.data.get('initiator_wallet')
+        if initiator_wallet == order.buyer.username:
+            initiator = order.buyer
+        elif initiator_wallet == order.seller.username:
+            initiator = order.seller
+        else:
+            initiator = order.buyer  # Default
+
+        Dispute.objects.create(
+            order=order,
+            initiator=initiator,
+            reason='Blockchain dispute initiated',
+            status='open'
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Dispute initiated! Awaiting arbiter decision...',
+            'tx_hash': tx_hash,
+            'order_id': order.id
+        }, status=status.HTTP_200_OK)

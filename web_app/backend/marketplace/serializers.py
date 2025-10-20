@@ -153,4 +153,151 @@ class UploadFileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UploadedFile
         fields = ['file']
-    
+
+
+# ==================== BLOCKCHAIN TRANSACTION SERIALIZERS ====================
+
+class CreateListingTransactionSerializer(serializers.Serializer):
+    """Serializer for building createListing transaction"""
+    seller_wallet = serializers.CharField(max_length=42, required=True)
+    title = serializers.CharField(max_length=200, required=True)
+    description = serializers.CharField(required=True)
+    price = serializers.DecimalField(max_digits=18, decimal_places=8, required=True)
+    currency = serializers.ChoiceField(choices=['PYUSD', 'USDC', 'USDT'], default='PYUSD')
+    image_url = serializers.CharField(required=False, allow_blank=True, default='')
+    escrow_type = serializers.ChoiceField(
+        choices=['disputable', 'api_approval', 'onchain_approval'],
+        default='disputable'
+    )
+    listing_duration_days = serializers.IntegerField(min_value=1, max_value=365, default=30)
+
+    def validate_seller_wallet(self, value):
+        """Validate wallet address format"""
+        if not value.startswith('0x') or len(value) != 42:
+            raise serializers.ValidationError('Invalid wallet address format')
+        return value.lower()
+
+    def validate_price(self, value):
+        """Validate price is positive"""
+        if value <= 0:
+            raise serializers.ValidationError('Price must be greater than 0')
+        return value
+
+
+class ConfirmTransactionSerializer(serializers.Serializer):
+    """Serializer for confirming transaction was sent"""
+    tx_hash = serializers.CharField(max_length=66, required=True)
+
+    def validate_tx_hash(self, value):
+        """Validate transaction hash format"""
+        if not value.startswith('0x') or len(value) != 66:
+            raise serializers.ValidationError('Invalid transaction hash format')
+        return value.lower()
+
+
+class BlockchainListingSerializer(serializers.ModelSerializer):
+    """Serializer for listing with blockchain data"""
+    seller = UserSerializer(read_only=True)
+    seller_rating = serializers.SerializerMethodField()
+    is_expired = serializers.ReadOnlyField()
+    expires_at = serializers.ReadOnlyField()
+
+    class Meta:
+        model = Listing
+        fields = ['id', 'seller', 'title', 'description', 'price', 'currency',
+                 'token_address', 'image_url', 'payment_method', 'escrow_type',
+                 'listing_duration_days', 'status', 'seller_rating', 'is_expired',
+                 'expires_at', 'blockchain_listing_id', 'blockchain_status',
+                 'creation_tx_hash', 'blockchain_expiration', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'blockchain_listing_id',
+                           'blockchain_status', 'creation_tx_hash', 'blockchain_expiration']
+
+    def get_seller_rating(self, obj):
+        try:
+            return float(obj.seller.userprofile.rating)
+        except:
+            return 0.0
+
+
+# ==================== BUYER TRANSACTION SERIALIZERS ====================
+
+class ApproveTokenTransactionSerializer(serializers.Serializer):
+    """Serializer for building ERC20 approve transaction"""
+    buyer_wallet = serializers.CharField(max_length=42, required=True)
+    listing_id = serializers.IntegerField(required=True)
+
+    def validate_buyer_wallet(self, value):
+        """Validate wallet address format"""
+        if not value.startswith('0x') or len(value) != 42:
+            raise serializers.ValidationError('Invalid wallet address format')
+        return value.lower()
+
+
+class PurchaseListingTransactionSerializer(serializers.Serializer):
+    """Serializer for building fillListing transaction"""
+    buyer_wallet = serializers.CharField(max_length=42, required=True)
+    listing_id = serializers.IntegerField(required=True)
+    deadline_days = serializers.IntegerField(min_value=1, max_value=365, default=7)
+
+    def validate_buyer_wallet(self, value):
+        """Validate wallet address format"""
+        if not value.startswith('0x') or len(value) != 42:
+            raise serializers.ValidationError('Invalid wallet address format')
+        return value.lower()
+
+
+class AcceptDeliveryTransactionSerializer(serializers.Serializer):
+    """Serializer for building resolveListing (accept) transaction"""
+    buyer_wallet = serializers.CharField(max_length=42, required=True)
+
+    def validate_buyer_wallet(self, value):
+        """Validate wallet address format"""
+        if not value.startswith('0x') or len(value) != 42:
+            raise serializers.ValidationError('Invalid wallet address format')
+        return value.lower()
+
+
+class DisputeListingTransactionSerializer(serializers.Serializer):
+    """Serializer for building disputeListing transaction"""
+    wallet_address = serializers.CharField(max_length=42, required=True)
+
+    def validate_wallet_address(self, value):
+        """Validate wallet address format"""
+        if not value.startswith('0x') or len(value) != 42:
+            raise serializers.ValidationError('Invalid wallet address format')
+        return value.lower()
+
+
+# ==================== SELLER TRANSACTION SERIALIZERS ====================
+
+class DeliverListingTransactionSerializer(serializers.Serializer):
+    """Serializer for building deliverDisputableListing transaction"""
+    seller_wallet = serializers.CharField(max_length=42, required=True)
+
+    def validate_seller_wallet(self, value):
+        """Validate wallet address format"""
+        if not value.startswith('0x') or len(value) != 42:
+            raise serializers.ValidationError('Invalid wallet address format')
+        return value.lower()
+
+
+# ==================== ORDER MANAGEMENT SERIALIZERS ====================
+
+class CreateOrderTransactionSerializer(serializers.Serializer):
+    """Serializer for creating order in database after purchase"""
+    listing_id = serializers.IntegerField(required=True)
+    buyer_wallet = serializers.CharField(max_length=42, required=True)
+    blockchain_listing_id = serializers.CharField(max_length=66, required=True)
+    deadline_days = serializers.IntegerField(min_value=1, max_value=365, default=7)
+
+    def validate_buyer_wallet(self, value):
+        """Validate wallet address format"""
+        if not value.startswith('0x') or len(value) != 42:
+            raise serializers.ValidationError('Invalid wallet address format')
+        return value.lower()
+
+    def validate_blockchain_listing_id(self, value):
+        """Validate listing ID format"""
+        if not value.startswith('0x') or len(value) != 66:
+            raise serializers.ValidationError('Invalid listing ID format')
+        return value.lower()

@@ -72,6 +72,13 @@ class Listing(models.Model):
     listing_duration_days = models.IntegerField(default=30, help_text="Number of days the listing will be active")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     is_deleted = models.BooleanField(default=False, help_text="Soft delete flag")
+
+    # Blockchain-related fields
+    blockchain_listing_id = models.CharField(max_length=66, blank=True, null=True, unique=True, help_text="bytes32 listing ID on blockchain (0x...)")
+    blockchain_status = models.CharField(max_length=20, blank=True, null=True, help_text="pending_tx, confirmed, failed")
+    creation_tx_hash = models.CharField(max_length=66, blank=True, null=True, help_text="Transaction hash for createListing")
+    blockchain_expiration = models.BigIntegerField(blank=True, null=True, help_text="Unix timestamp for blockchain expiration")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

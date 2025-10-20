@@ -26,6 +26,8 @@ services:
       - DEBUG=1
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - SECRET_KEY=${SECRET_KEY}
+      - ARBISCAN_API_KEY=${ARBISCAN_API_KEY}
+      - BLOCKCHAIN_NETWORK=arbitrum_sepolia
       # - PRIVY_APP_ID=${PRIVY_APP_ID}
       # - PRIVY_APP_SECRET=${PRIVY_APP_SECRET}
     networks:
