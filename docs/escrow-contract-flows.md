@@ -1,4 +1,4 @@
-## Debazaar Escrow Flows (Quick Guide)
+# Debazaar Escrow Flows (Quick Guide)
 
 This project supports three escrow flows in `DebazaarEscrow`:
 
@@ -8,26 +8,38 @@ This project supports three escrow flows in `DebazaarEscrow`:
 
 Below is the minimal lifecycle and the specific delivery step for each flow.
 
-### Common Lifecycle (all flows)
-- createListing(bytes32 listingId, address token, uint256 amount, uint64 expiration, EscrowType type)
-  - Seller creates an escrow listing (emits DeBazaar__ListingCreated)
-- fillListing(bytes32 listingId, uint64 deadline, bytes extraData)
+## Common Lifecycle (all flows)
+- `createListing(bytes32 listingId, address token, uint256 amount, uint64 expiration, EscrowType type)`
+  - Seller creates an escrow listing (emits `DeBazaar__ListingCreated`)
+- `fillListing(bytes32 listingId, uint64 deadline, bytes extraData)`
   - Buyer approves the token to escrow and fills (escrow pulls `amount` from buyer)
   - Encodes per-flow data in `extraData`
-  - Emits DeBazaar__ListingFilled
+  - Emits `DeBazaar__ListingFilled`
 
 States: Open → Filled → Delivered → Released/Refunded (or Canceled/Disputed)
 
 ---
 
-### 1) DISPUTABLE flow
-- extraData: empty
-- Delivery: seller calls `deliverDisputableListing(listingId)` → state: Delivered, emits DeBazaar__Delivered
-- Dispute window: buyer/seller may call `disputeListing(listingId)` to involve arbiter selection and voting.
-- Resolution:
-  - Buyer can call the `resolveListing(listingId, toBuyer)` to acknowledge that he has receieved the asset. (happy-path)
-  - `resolveListing(listingId, toBuyer)` by arbiter(s) or specific rules (disputed-path)
-  - Emits DeBazaar__Released (to seller) or DeBazaar__Refunded (to buyer)
+## 1) DISPUTABLE Flow
+- Extra Data: empty
+- Full Flow:
+
+  ![Disputable Flow](./assets/Arbitration-Settlement-Flow.svg)
+    - Seller creates an escrow listing and emits `DeBazaar__ListingCreated`
+    - Backend creates a Telegram group in case of any dispute; Seller must join in.
+    - After the negotiation phase, Buyer locks funds in the Escrow using `fillListing()`, and joins the Telegram group.
+    - Happy Path:
+      - Seller calls `deliverDisputableListing(listingId)` → state: Delivered, emits `DeBazaar__Delivered`
+      - Escrow unlocks the fund and fee using `resolveListing(listingId, toBuyer)`.
+    - Dispute Path:
+      - Buyer/Seller may call `disputeListing(listingId)` to involve arbiter selection and voting.
+      - The Escrow contract calls `addToListingQueue{value: fee}(listingId)` of the Arbitration contract.
+      - Arbitration contract calls `requestRandomNumber(listingId)`, which calls `requestV2()` on Pyth VRF contract.
+      - Pyth VRF contract provides a random number and calls `entropyCallback(sequenceNumber, provider, randomNumber)` of the Arbitration contract.
+      - A random list of Arbiters are selected and Backend is notified with this list; Arbiters are added to the Telegram group.
+      - Buyer and Seller provide their own evidence; Arbiters decide who is right.
+      - Arbiters call `resolveListing(listingId, toBuyer)` of Arbitration contract, which calls `resolveListing(listingId, toBuyer)` of the Escrow contract.
+    - Emits DeBazaar__Released (to seller) or DeBazaar__Refunded (to buyer)
 
 ---
 
