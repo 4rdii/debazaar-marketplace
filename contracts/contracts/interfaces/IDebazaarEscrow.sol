@@ -95,6 +95,7 @@ interface IDebazaarEscrow {
     error ApprovalResultMismatch();
     error NotFunctionsConsumer();
     error BeforeDeadline();
+    error TokenNotWhitelisted();
 
     // ========= Functions =========
     function resolveListing(bytes32 _listingId, bool _toBuyer) external;

@@ -24,6 +24,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     address private s_functionsConsumer;
     mapping(bytes32 => Listing) private s_listings;
     mapping(bytes32 => bytes32) private chainlinkRequestIdToListingId;
+    mapping(address => bool) private whitelistedTokens; 
 
     constructor(address _owner) Ownable(_owner) {}
 
@@ -45,6 +46,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         if (msg.sender == address(0) || address(_token) == address(0)) revert ZeroAddress();
         if (_expiration <= block.timestamp + MIN_EXPIRATION) revert InvalidDeadline();
         if (_amount == 0 || _expiration == 0) revert ZeroAmount();
+        if (!whitelistedTokens[_token]) revert TokenNotWhitelisted();
 
         Listing storage listing = s_listings[_listingId];
         if (listing.seller != address(0)) revert ListingAlreadyExists();
@@ -151,6 +153,7 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         // Interactions
         emit DeBazaar__Delivered(_listingId);
     }
+
     /// @notice Seller starts delivery for API approval; sets deadline and transitions to Delivered.
     /// @param _listingId The id of the escrow.
     /// @param _donHostedSecretsSlotID The DON hosted secrets slot ID for the API approval.
@@ -162,7 +165,6 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     /// @dev This function sets the deadline and transitions the escrow to Delivered.
     /// @dev This function sends a request to the functions consumer for API approval.
     /// @dev This function emits the DeliveryStarted event.
-
     function deliverApiApprovalListing(
         bytes32 _listingId,
         uint8 _donHostedSecretsSlotID,
@@ -194,12 +196,12 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         emit DeBazaar__ApiApprovalRequested(_listingId, requestId);
         emit DeBazaar__Delivered(_listingId);
     }
+
     /// @notice Delivers an onchain approval listing
     /// @param _listingId The ID of the listing
     /// @dev the seller marks the listing as delivered, when he has delivered the listing to the buyer
     /// @dev anyone can call this function, and if the call was successful, the listing is resolved in favor of the seller
     /// @dev Its highly suggested to call this function in the same transaction as the asset transfer transaction, to avoid frontrunning attacks
-
     function deliverOnchainApprovalListing(bytes32 _listingId) external nonReentrant {
         Listing storage listing = s_listings[_listingId];
 
@@ -251,15 +253,14 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         emit DeBazaar__Disputed(_listingId, msg.sender);
     }
 
-    /**
-     * @notice Resolves the listing in favor of the buyer or seller.
-     * @dev This function is only callable by the arbiter in case of a dispute
-     *      or by the escrow itself in case of a fullfillment event.
-     *      the buyer himself can call this in disputable escrow type,
-     *      if the item's delivery was satisfactory.
-     * @param _listingId The id of the escrow.
-     * @param _toBuyer The boolean to determine if the listing is resolved in favor of the buyer.
-     */
+
+    /// @notice Resolves the listing in favor of the buyer or seller.
+    /// @dev This function is only callable by the arbiter in case of a dispute
+    ///      or by the escrow itself in case of a fullfillment event.
+    ///      the buyer himself can call this in disputable escrow type,
+    ///      if the item's delivery was satisfactory.
+    /// @param _listingId The id of the escrow.
+    /// @param _toBuyer The boolean to determine if the listing is resolved in favor of the buyer.
     function resolveListing(bytes32 _listingId, bool _toBuyer) external {
         Listing storage listing = s_listings[_listingId];
 
@@ -296,14 +297,13 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         }
     }
 
-    /**
-     * @notice Fulfill the request for API approval or onchain approval.
-     * @param requestId The id of the request.
-     * @param response The response from the functions consumer.
-     * @param err The error from the functions consumer.
-     * @dev This function is only callable by the functions consumer.
-     * @dev This function resolves the escrow to the buyer or seller based on the response.
-     */
+    /// @notice Fulfill the request for API approval or onchain approval.
+    /// @notice Fulfill the request for API approval or onchain approval.
+    /// @param requestId The id of the request.
+    /// @param response The response from the functions consumer.
+    /// @param err The error from the functions consumer.
+    /// @dev This function is only callable by the functions consumer.
+    /// @dev This function resolves the escrow to the buyer or seller based on the response.
     function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) external nonReentrant {
         bytes32 listingId = chainlinkRequestIdToListingId[requestId];
         Listing storage listing = s_listings[listingId];
@@ -350,6 +350,13 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         if (_functionsConsumer == address(0)) revert ZeroAddress();
         s_functionsConsumer = _functionsConsumer;
     }
+    
+    function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _whitelisted) external onlyOwner {
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            if (_tokens[i] == address(0)) revert ZeroAddress();
+            whitelistedTokens[_tokens[i]] = _whitelisted[i];
+        }
+    }
     // ========= Getter Functions =========
 
     /// @notice Returns the listing details
@@ -377,16 +384,29 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
         return s_functionsConsumer;
     }
 
+    /// @notice Returns the API approval data for a given listing
+    /// @param _listingId The ID of the listing
+    /// @return The API approval data
     function getApiApprovalData(bytes32 _listingId) external view returns (ApiApprovalData memory) {
         Listing storage listing = s_listings[_listingId];
         if (listing.escrowType != EscrowType.API_APPROVAL) revert InvalidEscrowType();
         return listing.apiApprovalData;
     }
 
+    /// @notice Returns the onchain approval data for a given listing
+    /// @param _listingId The ID of the listing
+    /// @return The onchain approval data
     function getOnchainApprovalData(bytes32 _listingId) external view returns (OnchainApprovalData memory) {
         Listing storage listing = s_listings[_listingId];
         if (listing.escrowType != EscrowType.ONCHAIN_APPROVAL) revert InvalidEscrowType();
         return listing.onchainApprovalData;
+    }
+
+    /// @notice Returns if a token is whitelisted
+    /// @param _token The token address
+    /// @return True if the token is whitelisted, false otherwise
+    function isTokenWhitelisted(address _token) external view returns (bool) {
+        return whitelistedTokens[_token];
     }
 
     // ========= Internal Functions =========
