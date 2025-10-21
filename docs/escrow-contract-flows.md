@@ -1,8 +1,8 @@
-# Debazaar Escrow Flows (Quick Guide)
+# Debazaar Escrow Flows
 
 This project supports three escrow flows in `DebazaarEscrow`:
 
-- DISPUTABLE ( Arbiter selection done via pyth entropy )
+- DISPUTABLE ( Arbiter selection done via Pyth entropy )
 - API_APPROVAL (via Chainlink Functions)
 - ONCHAIN_APPROVAL (via on-chain callable check)
 
@@ -20,7 +20,7 @@ States: Open → Filled → Delivered → Released/Refunded (or Canceled/Dispute
 
 ---
 
-## 1) DISPUTABLE Flow
+## 1) DISPUTABLE Asset Transfer Flow
 - Extra Data: empty
 - Full Flow:
 
@@ -43,7 +43,7 @@ States: Open → Filled → Delivered → Released/Refunded (or Canceled/Dispute
 
 ---
 
-## 2) API_APPROVAL flow (Chainlink Functions)
+## 2) Centralized API_APPROVAL-needed Asset Transfer Flow (via Chainlink Functions)
 
 ### The Flow 
 - extraData: `ApiApprovalData` encoded as tuple
@@ -79,32 +79,50 @@ States: Open → Filled → Delivered → Released/Refunded (or Canceled/Dispute
 
 ---
 
-### 3) ONCHAIN_APPROVAL flow
-- extraData: `OnchainApprovalData` encoded as tuple
-  - destination (address), data (bytes), expectedResult (bytes)
-- Delivery: anyone calls `deliverOnchainApprovalListing(listingId)`
-  - Escrow `staticcall`s `destination` with `data`
-  - If returned bytes keccak256 matches `expectedResult` → release to seller
-  - Else reverts (ApprovalResultMismatch)
-  - Emits DeBazaar__Delivered
+## 3) ONCHAIN_APPROVAL-needed Asset Transfer Flow
+
+### The Flow
+- extraData: `OnchainApprovalData` encoded as tuple, destination (address), data (bytes), expectedResult (bytes)
+- Full Flow:
+
+  ![Disputable Flow](./assets/On-chain-Settlement.svg)
+    - Seller creates an escrow listing and emits `DeBazaar__ListingCreated`
+    - After the negotiation phase, Buyer locks funds in the Escrow using `fillListing()`.
+    - The Seller:
+      - Transfers assets on-chain (e.g., a NFT or fungible token), then he calls `deliverOnchainApprovalListing(listingId)` on the Escrow contract, or
+      - He does the transfer and call in via a multicall.
+      - Emits `DeBazaar__Delivered`.
+    - Happy path:
+      - If the returned bytes keccak256 matches `expectedResult`, this calls the Escrow contract's `resolveListing(listingId, toBuyer: false)` and unlocks the fund and the fee.
+    - Unhappy paths:
+      - If the return bytes does not match, returns with `ApprovalResultMismatch`, and calls the Escrow contract's `resolveListing(listingId, toBuyer: true)` and refunds the Buyer.
+      - If the deadline of transfer is passed:
+        - Buyer calls `cancelListingByBuyer(listingId)` and Escrow refunds the locked fund back to Buyer.
+    - Emits `DeBazaar__Released` (to seller) or `DeBazaar__Refunded` (to buyer).
+ 
+### Why this flow?
+By design, our on-chain asset-transfer flow differs from conventional marketplaces 
+(including NFT platforms and ERC-20 DEXs). We chose this approach to support a wide
+range of asset types and transfer methods through a single, consistent process. 
+This generalized flow lets us accommodate heterogeneous assets without coupling to 
+any one standard, aligning with our vision for an **ULTIMATE**, **COMPREHENSIVE**, 
+crypto-based marketplace.
 
 ---
 
-### Key Events
-- DeBazaar__ListingCreated(listingId, seller, token, amount, expiration, type)
-- DeBazaar__ListingFilled(listingId, buyer, deadline)
-- DeBazaar__Delivered(listingId)
-- DeBazaar__ApiApprovalRequested(listingId, requestId) [API_APPROVAL]
-- DeBazaar__Released(listingId)
-- DeBazaar__Refunded(listingId)
+## Key Events
+- `DeBazaar__ListingCreated(listingId, seller, token, amount, expiration, type)`
+- `DeBazaar__ListingFilled(listingId, buyer, deadline)`
+- `DeBazaar__Delivered(listingId)`
+- `DeBazaar__ApiApprovalRequested(listingId, requestId)`
+- `DeBazaar__Released(listingId)`
+- `DeBazaar__Refunded(listingId)`
 
-### Addresses (Arbitrum Sepolia - latest)
+## Addresses (Arbitrum Sepolia - latest)
 - Escrow: see `contracts/ignition/deployments/chain-421614/deployed_addresses.json`
 - FunctionsConsumerProxy: same file (`FunctionsConsumerProxy`)
 
-### Notes
-- Buyer must `approve(escrow, amount)` before `fillListing` for ERC20 flows
-- API flow must have a funded Chainlink Functions subscription and correct DON ID
-- Deadlines/expirations must be in the future, or calls revert
-
-
+## Notes
+- In the flows above, we assume that Buyer already called `approve(escrow, amount)` before `fillListing` for ERC20 flows. This can be done in frontend.
+- In the Centralized API-needed flow, we assume we have a funded Chainlink Functions subscription and correct DON ID.
+- Deadlines/expirations must be in the future, or calls revert.
