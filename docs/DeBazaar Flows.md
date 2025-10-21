@@ -30,11 +30,11 @@ States: Open → Filled → Delivered → Released/Refunded (or Canceled/Dispute
     - After the negotiation phase, Buyer locks funds in the Escrow using `fillListing()`, and joins the Telegram group.
     - Happy Path:
       - Seller calls `deliverDisputableListing(listingId)` → state: Delivered, emits `DeBazaar__Delivered`
-      - Escrow unlocks the fund and fee using `resolveListing(listingId, toBuyer)`.
+      - Escrow is unlocked if buyer calls `resolveListing(listingId, toBuyer)`. in this case toBuyer is overriden to false. 
     - Dispute Path:
-      - Buyer/Seller may call `disputeListing(listingId)` to involve arbiter selection and voting.
+      - Buyer/Seller may call `disputeListing{value: fee}(listingId)` to involve arbiter selection and voting. the caller must provide the pyth entropy fee (in native token). 
       - The Escrow contract calls `addToListingQueue{value: fee}(listingId)` of the Arbitration contract.
-      - Arbitration contract calls `requestRandomNumber(listingId)`, which calls `requestV2()` on Pyth VRF contract.
+      - Arbitration contract calls `requestRandomNumber{value: fee}(listingId)`, which calls `requestV2()` on Pyth VRF contract.
       - Pyth VRF contract provides a random number and calls `entropyCallback(sequenceNumber, provider, randomNumber)` of the Arbitration contract.
       - A random list of Arbiters are selected and Backend is notified with this list; Arbiters are added to the Telegram group.
       - Buyer and Seller provide their own evidence; Arbiters decide who is right.
@@ -65,17 +65,6 @@ States: Open → Filled → Delivered → Released/Refunded (or Canceled/Dispute
       - Deadline is passed:
         - Buyer calls `cancelListingByBuyer(listingId)` and Escrow refunds the locked fund back to Buyer.
     - Emits `DeBazaar__Released` (to seller) or `DeBazaar__Refunded` (to buyer).
-
-### Environment variables typically needed for the API flow:
-- `CHAINLINK_FUNCTIONS_SUBSCRIPTION_ID`
-- `CHAINLINK_DON_ID_ARB_SEPOLIA`
-- `ARBITRUM_SEPOLIA_RPC_URL, PRIVATE_KEY` (funded)
-
-### How to run the sample API flow script:
-- Uses `contracts/scripts/test-chainlink-functions.ts`
-- Update LINK token allowance and ensure subscription exists/funded
-- Command:
-  - `npm run test:chainlink-functions`
 
 ---
 
