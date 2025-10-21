@@ -1,4 +1,4 @@
-import { connectWallet } from '../utils/metamask';
+import { connectWallet, ensureCorrectNetwork } from '../utils/metamask';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'https://api.debazaar.click/api';
 
@@ -8,7 +8,13 @@ const API_BASE = process.env.REACT_APP_API_URL || 'https://api.debazaar.click/ap
  */
 export const authenticateWithWallet = async () => {
     try {
-        // Step 1: Connect wallet
+        // Step 1: Ensure correct network
+        const networkCorrect = await ensureCorrectNetwork();
+        if (!networkCorrect) {
+            throw new Error('Please switch to Arbitrum Sepolia network to continue');
+        }
+
+        // Step 2: Connect wallet
         const walletAddress = await connectWallet();
 
         if (!walletAddress) {

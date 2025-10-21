@@ -18,21 +18,28 @@ class UserProfileSerializer(serializers.ModelSerializer):
                  'dispute_count', 'total_orders', 'dispute_rate', 'created_at']
 
 
+class OrderSimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ['id', 'order_id', 'status', 'created_at']
+
+
 class ListingSerializer(serializers.ModelSerializer):
     seller = UserSerializer(read_only=True)
     seller_rating = serializers.SerializerMethodField()
     is_expired = serializers.ReadOnlyField()
     expires_at = serializers.ReadOnlyField()
-    
+    orders = OrderSimpleSerializer(many=True, read_only=True)
+
     class Meta:
         model = Listing
         fields = ['id', 'seller', 'title', 'description', 'price', 'currency',
                  'token_address', 'file_path', 'metadata_cid', 'image_url',
                  'image_cid', 'payment_method', 'escrow_type', 'seller_contact',
                  'listing_duration_days',
-                 'status', 'seller_rating', 'is_expired', 'expires_at', 'created_at', 'updated_at']
+                 'status', 'seller_rating', 'is_expired', 'expires_at', 'orders', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
-    
+
     def get_seller_rating(self, obj):
         try:
             return float(obj.seller.userprofile.rating)

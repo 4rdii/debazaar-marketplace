@@ -159,6 +159,32 @@ body {
     position: relative;
 }
 
+.sold-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(128, 128, 128, 0.8);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sold-badge {
+    background-color: #dc3545;
+    color: #ffffff;
+    padding: 16px 40px;
+    border-radius: 8px;
+    font-size: 24px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transform: rotate(-15deg);
+}
+
 .product-card:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     border-color: #0064d2;

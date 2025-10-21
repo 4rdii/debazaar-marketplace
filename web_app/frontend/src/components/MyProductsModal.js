@@ -75,6 +75,11 @@ const MyProductsModal = ({ onClose, authUser, onProductClick }) => {
         }
     };
 
+    const handleProductDelivered = (productId) => {
+        // Reload products to show updated status
+        loadUserProducts();
+    };
+
     const renderProductsList = () => (
         <div className="my-products-grid">
             {userProducts.map(product => (
@@ -83,6 +88,7 @@ const MyProductsModal = ({ onClose, authUser, onProductClick }) => {
                     product={product}
                     onWatchClick={onProductClick}
                     onDelete={handleDeleteProduct}
+                    onDelivered={handleProductDelivered}
                 />
             ))}
         </div>

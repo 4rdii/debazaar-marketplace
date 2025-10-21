@@ -3,6 +3,7 @@ import ProductCard from './components/ProductCard';
 import AddProductForm from './components/AddProductForm';
 import ProductDetailModal from './components/ProductDetailModal';
 import MyProductsModal from './components/MyProductsModal';
+import MyPurchasesModal from './components/MyPurchasesModal';
 import { api } from './services/api';
 import { authenticateWithWallet, getStoredAuth, logout } from './services/auth';
 import './App.css';
@@ -25,6 +26,7 @@ function App() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchTimeout, setSearchTimeout] = useState(null);
     const [showMyProducts, setShowMyProducts] = useState(false);
+    const [showMyPurchases, setShowMyPurchases] = useState(false);
 
     // MetaMask state
     const [walletAddress, setWalletAddress] = useState(null);
@@ -153,36 +155,28 @@ function App() {
     };
 
     const handleAddProduct = async (productData) => {
-        if (!authUser) {
-            alert('Please connect your wallet to add products');
-            return;
-        }
-
-        try {
-            // Add user ID to the product data
-            const sellerId = authUser.user_id;
-            console.log('Creating product with seller_id:', sellerId);
-
-            const listingData = {
-                ...productData,
-                seller_id: sellerId
-            };
-            await api.createListing(listingData);
-
-            setShowAddForm(false);
-            loadProducts(); // Refresh the product list
-        } catch (err) {
-            console.error('Error adding product:', err);
-            alert('Failed to add product. Please try again.');
-        }
+        // The AddProductForm now handles the entire blockchain transaction flow
+        // This callback is called after successful listing creation
+        console.log('Listing created successfully:', productData);
+        setShowAddForm(false);
+        loadProducts(); // Refresh the product list
     };
 
     const handleWatchClick = (product) => {
         setSelectedProduct(product);
     };
 
+    const handleBuyClick = (product) => {
+        setSelectedProduct(product);
+    };
+
     const handleCloseProductDetail = () => {
         setSelectedProduct(null);
+    };
+
+    const handlePurchaseSuccess = () => {
+        // Reload products list to reflect that the purchased item is no longer available
+        loadProducts(searchQuery.trim() ? { search: searchQuery } : {});
     };
 
     // Debounced search function
@@ -282,6 +276,12 @@ function App() {
                                 My Products
                             </button>
                             <button
+                                className="my-products-btn"
+                                onClick={() => setShowMyPurchases(true)}
+                            >
+                                My Purchases
+                            </button>
+                            <button
                                 className="sell-btn"
                                 onClick={() => setShowAddForm(true)}
                             >
@@ -301,6 +301,7 @@ function App() {
                             key={product.id}
                             product={product}
                             onWatchClick={handleWatchClick}
+                            onBuyClick={handleBuyClick}
                         />
                     ))}
                 </div>
@@ -317,12 +318,21 @@ function App() {
                 <ProductDetailModal
                     product={selectedProduct}
                     onClose={handleCloseProductDetail}
+                    onPurchaseSuccess={handlePurchaseSuccess}
                 />
             )}
 
             {showMyProducts && (
                 <MyProductsModal
                     onClose={() => setShowMyProducts(false)}
+                    authUser={authUser}
+                    onProductClick={handleWatchClick}
+                />
+            )}
+
+            {showMyPurchases && (
+                <MyPurchasesModal
+                    onClose={() => setShowMyPurchases(false)}
                     authUser={authUser}
                     onProductClick={handleWatchClick}
                 />

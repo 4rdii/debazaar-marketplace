@@ -116,3 +116,4 @@ private-keys.txt
 mnemonic.txt
 .secret
 claude.md
+*node_modules

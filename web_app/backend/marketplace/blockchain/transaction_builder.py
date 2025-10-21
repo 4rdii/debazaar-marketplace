@@ -215,9 +215,8 @@ class TransactionBuilder:
             raise ValueError(f"Token {token_symbol} not found on {self.network_name}")
 
         # Convert amount to wei (assuming 6 decimals for USDC/USDT/PYUSD)
-        amount_wei = int(amount_in_tokens * 10**6)
+        amount_wei = int(amount_in_tokens * 10**18)
 
-        # Get ERC20 contract instance with dynamic ABI from Arbiscan
         token_contract = self.contract_service.get_erc20_contract(token_address)
 
         # Build approve function call
