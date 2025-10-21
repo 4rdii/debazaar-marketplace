@@ -153,28 +153,11 @@ function App() {
     };
 
     const handleAddProduct = async (productData) => {
-        if (!authUser) {
-            alert('Please connect your wallet to add products');
-            return;
-        }
-
-        try {
-            // Add user ID to the product data
-            const sellerId = authUser.user_id;
-            console.log('Creating product with seller_id:', sellerId);
-
-            const listingData = {
-                ...productData,
-                seller_id: sellerId
-            };
-            await api.createListing(listingData);
-
-            setShowAddForm(false);
-            loadProducts(); // Refresh the product list
-        } catch (err) {
-            console.error('Error adding product:', err);
-            alert('Failed to add product. Please try again.');
-        }
+        // The AddProductForm now handles the entire blockchain transaction flow
+        // This callback is called after successful listing creation
+        console.log('Listing created successfully:', productData);
+        setShowAddForm(false);
+        loadProducts(); // Refresh the product list
     };
 
     const handleWatchClick = (product) => {

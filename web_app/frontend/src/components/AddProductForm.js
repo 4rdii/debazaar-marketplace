@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { api } from '../services/api';
+import { sendTransaction, waitForTransaction } from '../services/blockchain';
+import { getStoredAuth } from '../services/auth';
 
 const AddProductForm = ({ onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
@@ -7,21 +10,29 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         price: '',
         currency: 'USDT',
         image_url: '',
-        token_address: '0x0000000000000000000000000000000000000000',
         payment_method: 'escrow',
         escrow_type: 'disputable',
         seller_contact: '',
-        listing_duration_days: 30,
-        seller_id: 1 // Mock seller ID
+        listing_duration_days: 30
     });
 
     const [imageMethod, setImageMethod] = useState('url'); // 'url' or 'upload'
     const [selectedFile, setSelectedFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState('');
     const [isUploading, setIsUploading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submissionStatus, setSubmissionStatus] = useState(''); // 'building', 'signing', 'confirming', 'finalizing'
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // Check if user is authenticated
+        const auth = getStoredAuth();
+        if (!auth || !auth.walletAddress) {
+            alert('Please connect your wallet first!');
+            return;
+        }
+
         console.log('Form submitted with method:', imageMethod);
         console.log('Selected file:', selectedFile);
         console.log('Current formData.image_url:', formData.image_url);
@@ -49,8 +60,100 @@ const AddProductForm = ({ onClose, onSubmit }) => {
             return;
         }
 
-        console.log('Submitting form with data:', finalFormData);
-        onSubmit(finalFormData);
+        // For escrow listings, use blockchain transaction flow
+        if (finalFormData.payment_method === 'escrow') {
+            await handleBlockchainListing(finalFormData, auth.walletAddress);
+        } else {
+            // For direct listings, use old flow
+            console.log('Submitting direct listing:', finalFormData);
+            onSubmit(finalFormData);
+        }
+    };
+
+    /**
+     * Handle blockchain listing creation flow
+     * 1. Build transaction on backend
+     * 2. Sign transaction with MetaMask
+     * 3. Wait for blockchain confirmation
+     * 4. Finalize listing on backend
+     */
+    const handleBlockchainListing = async (listingData, walletAddress) => {
+        setIsSubmitting(true);
+
+        try {
+            // STEP 1: Build unsigned transaction
+            setSubmissionStatus('building');
+            console.log('Step 1: Building transaction...');
+
+            const txData = await api.createListingTransaction({
+                seller_wallet: walletAddress,
+                title: listingData.title,
+                description: listingData.description,
+                price: listingData.price,
+                currency: listingData.currency,
+                image_url: listingData.image_url,
+                escrow_type: listingData.escrow_type,
+                listing_duration_days: listingData.listing_duration_days
+            });
+
+            console.log('Transaction built:', txData);
+            const { transaction, listing_id, db_listing_id } = txData;
+
+            // STEP 2: Sign and send transaction with MetaMask
+            setSubmissionStatus('signing');
+            console.log('Step 2: Please sign transaction in MetaMask...');
+
+            const txHash = await sendTransaction(transaction);
+            console.log('Transaction sent! Hash:', txHash);
+
+            // STEP 3: Confirm transaction on backend
+            setSubmissionStatus('confirming');
+            console.log('Step 3: Confirming transaction on backend...');
+
+            await api.confirmListingTransaction(db_listing_id, txHash);
+
+            // STEP 4: Wait for blockchain confirmation
+            console.log('Step 4: Waiting for blockchain confirmation...');
+
+            await waitForTransaction(txHash);
+            console.log('Transaction confirmed on blockchain!');
+
+            // STEP 5: Finalize listing on backend
+            setSubmissionStatus('finalizing');
+            console.log('Step 5: Finalizing listing...');
+
+            const result = await api.finalizeListing(db_listing_id);
+            console.log('Listing finalized!', result);
+
+            // Success!
+            alert('✅ Listing created successfully on blockchain!');
+
+            // Call parent onSubmit to refresh listings
+            if (onSubmit) {
+                onSubmit(result.listing);
+            }
+
+            // Close form
+            onClose();
+
+        } catch (error) {
+            console.error('Blockchain listing creation failed:', error);
+
+            let errorMessage = 'Failed to create listing: ';
+
+            if (error.message.includes('rejected')) {
+                errorMessage += 'Transaction was rejected by user';
+            } else if (error.message.includes('insufficient funds')) {
+                errorMessage += 'Insufficient funds for gas fees';
+            } else {
+                errorMessage += error.message;
+            }
+
+            alert(errorMessage);
+        } finally {
+            setIsSubmitting(false);
+            setSubmissionStatus('');
+        }
     };
 
     const handleChange = (e) => {
@@ -126,6 +229,37 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         const url = e.target.value;
         setFormData(prev => ({ ...prev, image_url: url }));
         setPreviewUrl(url);
+    };
+
+    // Helper functions for UI feedback
+    const getSubmitButtonText = () => {
+        switch (submissionStatus) {
+            case 'building':
+                return 'Building Transaction...';
+            case 'signing':
+                return 'Waiting for Signature...';
+            case 'confirming':
+                return 'Confirming on Blockchain...';
+            case 'finalizing':
+                return 'Finalizing...';
+            default:
+                return 'Processing...';
+        }
+    };
+
+    const getStatusMessage = () => {
+        switch (submissionStatus) {
+            case 'building':
+                return 'Building unsigned transaction on backend...';
+            case 'signing':
+                return '⏳ Please sign the transaction in MetaMask...';
+            case 'confirming':
+                return '⏳ Transaction sent! Waiting for blockchain confirmation (2-5 seconds)...';
+            case 'finalizing':
+                return '⏳ Transaction confirmed! Activating your listing...';
+            default:
+                return 'Processing your request...';
+        }
     };
 
     return (
@@ -294,13 +428,27 @@ const AddProductForm = ({ onClose, onSubmit }) => {
 
 
                     <div className="form-actions">
-                        <button type="button" onClick={onClose} className="cancel-btn">
+                        <button type="button" onClick={onClose} className="cancel-btn" disabled={isSubmitting}>
                             Cancel
                         </button>
-                        <button type="submit" className="submit-btn">
-                            Add Product
+                        <button type="submit" className="submit-btn" disabled={isSubmitting}>
+                            {isSubmitting ? getSubmitButtonText() : 'Add Product'}
                         </button>
                     </div>
+
+                    {isSubmitting && (
+                        <div style={{
+                            marginTop: '16px',
+                            padding: '12px',
+                            background: '#f0f7ff',
+                            border: '1px solid #4CAF50',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            color: '#333'
+                        }}>
+                            <strong>Status:</strong> {getStatusMessage()}
+                        </div>
+                    )}
                 </form>
             </div>
         </div>
