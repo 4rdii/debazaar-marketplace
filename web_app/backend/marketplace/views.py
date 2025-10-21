@@ -911,11 +911,8 @@ class ConfirmDeliveryTransactionByListingView(generics.GenericAPIView):
             listing.status = 'delivered'
             listing.save()
 
-            # Update order status if exists
-            order = listing.orders.filter(status='paid').first()
-            if order:
-                order.status = 'delivered'
-                order.save()
+            # Update ALL orders for this listing to delivered
+            listing.orders.all().update(status='delivered')
 
             return Response({
                 'success': True,
@@ -1007,16 +1004,60 @@ class ConfirmAcceptanceView(generics.GenericAPIView):
 
         tx_hash = serializer.validated_data['tx_hash']
 
-        # Update order status to completed
-        order.status = 'completed'
-        order.save()
+        from web3 import Web3
+        from .blockchain.config import get_network_config, get_contract_address
+        import time
 
-        return Response({
-            'success': True,
-            'message': 'Delivery accepted! Funds released to seller.',
-            'tx_hash': tx_hash,
-            'order_id': order.id
-        }, status=status.HTTP_200_OK)
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tx_hash = serializer.validated_data['tx_hash']
+
+        # Connect to blockchain
+        network_config = get_network_config()
+        w3 = Web3(Web3.HTTPProvider(network_config['rpc_url']))
+
+        try:
+            # Wait for transaction receipt
+            time.sleep(3)
+            tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
+
+            # Check if transaction was successful
+            if tx_receipt['status'] != 1:
+                return Response({
+                    'success': False,
+                    'error': 'Transaction failed on blockchain'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Verify the transaction is for our contract
+            escrow_address = get_contract_address('escrow')
+            if tx_receipt['to'].lower() != escrow_address.lower():
+                return Response({
+                    'success': False,
+                    'error': 'Transaction is not for the escrow contract'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Update order status to completed
+            order.status = 'completed'
+            order.save()
+
+            # Update listing status to released
+            order.listing.status = 'released'
+            order.listing.save()
+
+            return Response({
+                'success': True,
+                'message': 'Delivery accepted! Funds released to seller.',
+                'tx_hash': tx_hash,
+                'order_id': order.id
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Failed to verify transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class DisputeListingTransactionView(generics.GenericAPIView):
@@ -1104,9 +1145,46 @@ class ConfirmDisputeView(generics.GenericAPIView):
 
         tx_hash = serializer.validated_data['tx_hash']
 
+        from web3 import Web3
+        from .blockchain.config import get_network_config, get_contract_address
+        import time
+
+        # Connect to blockchain
+        network_config = get_network_config()
+        w3 = Web3(Web3.HTTPProvider(network_config['rpc_url']))
+
+        try:
+            # Wait for transaction receipt
+            time.sleep(3)
+            tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
+
+            # Check if transaction was successful
+            if tx_receipt['status'] != 1:
+                return Response({
+                    'success': False,
+                    'error': 'Transaction failed on blockchain'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Verify the transaction is for our contract
+            escrow_address = get_contract_address('escrow')
+            if tx_receipt['to'].lower() != escrow_address.lower():
+                return Response({
+                    'success': False,
+                    'error': 'Transaction is not for the escrow contract'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Failed to verify transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Update order status to disputed
         order.status = 'disputed'
         order.save()
+
+        # Update listing status to disputed
+        order.listing.status = 'disputed'
+        order.listing.save()
 
         # Create Dispute record
         # Determine initiator from request (should be passed in body)

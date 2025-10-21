@@ -222,5 +222,81 @@ export const api = {
         if (!response.ok) throw new Error('Failed to fetch purchases');
         const data = await response.json();
         return { purchases: data.listings || [] };
+    },
+
+    /**
+     * Build unsigned transaction for approving delivery
+     * @param {number} orderId - Order ID
+     * @param {string} buyerWallet - Buyer wallet address
+     * @returns {Promise<{success: boolean, transaction: Object}>}
+     */
+    approveDeliveryTransaction: async (orderId, buyerWallet) => {
+        const response = await fetch(`${API_BASE}/orders/${orderId}/accept-transaction/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ buyer_wallet: buyerWallet })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to build approval transaction');
+        }
+        return response.json();
+    },
+
+    /**
+     * Confirm approval transaction was sent
+     * @param {number} orderId - Order ID
+     * @param {string} txHash - Transaction hash
+     * @returns {Promise<{success: boolean}>}
+     */
+    confirmApprovalTransaction: async (orderId, txHash) => {
+        const response = await fetch(`${API_BASE}/orders/${orderId}/confirm-acceptance/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tx_hash: txHash })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to confirm approval');
+        }
+        return response.json();
+    },
+
+    /**
+     * Build unsigned transaction for disputing delivery
+     * @param {number} orderId - Order ID
+     * @param {string} buyerWallet - Buyer wallet address
+     * @returns {Promise<{success: boolean, transaction: Object}>}
+     */
+    disputeDeliveryTransaction: async (orderId, buyerWallet) => {
+        const response = await fetch(`${API_BASE}/orders/${orderId}/dispute-transaction/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ buyer_wallet: buyerWallet })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to build dispute transaction');
+        }
+        return response.json();
+    },
+
+    /**
+     * Confirm dispute transaction was sent
+     * @param {number} orderId - Order ID
+     * @param {string} txHash - Transaction hash
+     * @returns {Promise<{success: boolean}>}
+     */
+    confirmDisputeTransaction: async (orderId, txHash) => {
+        const response = await fetch(`${API_BASE}/orders/${orderId}/confirm-dispute/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tx_hash: txHash })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to confirm dispute');
+        }
+        return response.json();
     }
 };

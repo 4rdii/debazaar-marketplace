@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { getStoredAuth } from '../services/auth';
+import { sendTransaction, waitForTransaction } from '../services/blockchain';
 import { formatPriceWithCurrency } from '../utils/priceFormatter';
 import './MyProductsModal.css';
 
@@ -7,6 +9,7 @@ const MyPurchasesModal = ({ onClose, authUser, onProductClick }) => {
     const [purchases, setPurchases] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [processingId, setProcessingId] = useState(null);
 
     useEffect(() => {
         loadPurchases();
@@ -41,6 +44,84 @@ const MyPurchasesModal = ({ onClose, authUser, onProductClick }) => {
         }
     };
 
+    const handleApproveDelivery = async (purchase) => {
+        const auth = getStoredAuth();
+        if (!auth || !auth.walletAddress) {
+            alert('Please connect your wallet first!');
+            return;
+        }
+
+        setProcessingId(purchase.id);
+        try {
+            const orderId = purchase.orders?.[0]?.id;
+            if (!orderId) {
+                alert('Order not found for this purchase');
+                return;
+            }
+
+            // Build approval transaction
+            const approvalData = await api.approveDeliveryTransaction(orderId, auth.walletAddress);
+
+            // Send transaction
+            const txHash = await sendTransaction(approvalData.transaction);
+
+            // Wait for confirmation
+            await waitForTransaction(txHash);
+
+            // Confirm on backend
+            await api.confirmApprovalTransaction(orderId, txHash);
+
+            alert('✅ Delivery approved! Payment released to seller.');
+            loadPurchases();
+        } catch (error) {
+            console.error('Approval error:', error);
+            alert(`Failed to approve delivery: ${error.message}`);
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleDisputeDelivery = async (purchase) => {
+        const auth = getStoredAuth();
+        if (!auth || !auth.walletAddress) {
+            alert('Please connect your wallet first!');
+            return;
+        }
+
+        if (!window.confirm('Are you sure you want to dispute this delivery? This will open a dispute process.')) {
+            return;
+        }
+
+        setProcessingId(purchase.id);
+        try {
+            const orderId = purchase.orders?.[0]?.id;
+            if (!orderId) {
+                alert('Order not found for this purchase');
+                return;
+            }
+
+            // Build dispute transaction
+            const disputeData = await api.disputeDeliveryTransaction(orderId, auth.walletAddress);
+
+            // Send transaction
+            const txHash = await sendTransaction(disputeData.transaction);
+
+            // Wait for confirmation
+            await waitForTransaction(txHash);
+
+            // Confirm on backend
+            await api.confirmDisputeTransaction(orderId, txHash);
+
+            alert('✅ Dispute opened. An arbiter will review the case.');
+            loadPurchases();
+        } catch (error) {
+            console.error('Dispute error:', error);
+            alert(`Failed to open dispute: ${error.message}`);
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
     const getStatusBadge = (status) => {
         const badges = {
             'open': { text: 'Open', color: '#28a745' },
@@ -53,9 +134,9 @@ const MyPurchasesModal = ({ onClose, authUser, onProductClick }) => {
         };
         const badge = badges[status] || { text: status, color: '#6c757d' };
         return (
-            <span 
-                className="status-badge" 
-                style={{ 
+            <span
+                className="status-badge"
+                style={{
                     backgroundColor: badge.color,
                     color: 'white',
                     padding: '4px 8px',
@@ -95,6 +176,26 @@ const MyPurchasesModal = ({ onClose, authUser, onProductClick }) => {
                         </div>
                         <div className="product-actions">
                             <button className="view-btn" onClick={() => onProductClick(purchase)}>View</button>
+                            {purchase.status === 'delivered' && (
+                                <>
+                                    <button
+                                        className="deliver-btn"
+                                        onClick={() => handleApproveDelivery(purchase)}
+                                        disabled={processingId === purchase.id}
+                                        style={{ backgroundColor: '#28a745', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                    >
+                                        {processingId === purchase.id ? 'Processing...' : '✓ Approve Delivery'}
+                                    </button>
+                                    <button
+                                        className="delete-btn"
+                                        onClick={() => handleDisputeDelivery(purchase)}
+                                        disabled={processingId === purchase.id}
+                                        style={{ backgroundColor: '#ffc107', color: 'black', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                    >
+                                        {processingId === purchase.id ? 'Processing...' : '⚠ Dispute'}
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
