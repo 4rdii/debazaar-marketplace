@@ -210,5 +210,17 @@ export const api = {
             throw new Error(errorData.error || 'Failed to confirm delivery');
         }
         return response.json();
+    },
+
+    /**
+     * Get user purchases
+     * @param {number} userId - User ID
+     * @returns {Promise<{purchases: Array}>}
+     */
+    getUserPurchases: async (userId) => {
+        const response = await fetch(`${API_BASE}/listings/?buyer=${userId}`);
+        if (!response.ok) throw new Error('Failed to fetch purchases');
+        const data = await response.json();
+        return { purchases: data.listings || [] };
     }
 };

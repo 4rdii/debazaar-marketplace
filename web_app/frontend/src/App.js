@@ -3,6 +3,7 @@ import ProductCard from './components/ProductCard';
 import AddProductForm from './components/AddProductForm';
 import ProductDetailModal from './components/ProductDetailModal';
 import MyProductsModal from './components/MyProductsModal';
+import MyPurchasesModal from './components/MyPurchasesModal';
 import { api } from './services/api';
 import { authenticateWithWallet, getStoredAuth, logout } from './services/auth';
 import './App.css';
@@ -25,6 +26,7 @@ function App() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchTimeout, setSearchTimeout] = useState(null);
     const [showMyProducts, setShowMyProducts] = useState(false);
+    const [showMyPurchases, setShowMyPurchases] = useState(false);
 
     // MetaMask state
     const [walletAddress, setWalletAddress] = useState(null);
@@ -274,6 +276,12 @@ function App() {
                                 My Products
                             </button>
                             <button
+                                className="my-products-btn"
+                                onClick={() => setShowMyPurchases(true)}
+                            >
+                                My Purchases
+                            </button>
+                            <button
                                 className="sell-btn"
                                 onClick={() => setShowAddForm(true)}
                             >
@@ -317,6 +325,14 @@ function App() {
             {showMyProducts && (
                 <MyProductsModal
                     onClose={() => setShowMyProducts(false)}
+                    authUser={authUser}
+                    onProductClick={handleWatchClick}
+                />
+            )}
+
+            {showMyPurchases && (
+                <MyPurchasesModal
+                    onClose={() => setShowMyPurchases(false)}
                     authUser={authUser}
                     onProductClick={handleWatchClick}
                 />
