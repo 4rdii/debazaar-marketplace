@@ -44,6 +44,9 @@ class TransactionBuilder:
         # Get escrow contract with dynamic ABI from Arbiscan (falls back to hardcoded if needed)
         self.escrow_contract = self.contract_service.get_escrow_contract()
 
+        # Get entropy v2 contract with dynamic ABI from Arbiscan (falls back to hardcoded if needed)
+        self.entropy_v2_contract = self.contract_service.get_entropyv2_contract()
+
     def generate_listing_id(self, seller_address, title, timestamp=None):
         """
         Generate a unique bytes32 listing ID
@@ -263,7 +266,7 @@ class TransactionBuilder:
             listing_id (str): Listing ID (bytes32 hex string)
             deadline_timestamp (int): Unix timestamp for delivery deadline
             from_address (str): Buyer's wallet address
-            extra_data (bytes): Extra data for onchain approval (default empty)
+            extra_data (bytes): Extra data for onchain/api approval (default empty)
 
         Returns:
             dict: Unsigned transaction data
@@ -344,11 +347,13 @@ class TransactionBuilder:
     def build_resolve_listing_transaction(
         self,
         listing_id,
-        to_buyer,
+        to_buyer=False,
         from_address=None
     ):
         """
-        Build unsigned transaction for resolveListing (buyer accepts or rejects)
+        Build unsigned transaction for resolveListing 
+        (if buyers calls this, it means he accepts the delivery, 
+        to_buyer will be overridden to False in the contract if buyer is the caller)
 
         Args:
             listing_id (str): Listing ID (bytes32 hex string)
@@ -451,16 +456,16 @@ class TransactionBuilder:
 
     def get_entropy_fee(self):
         """
-        Get the entropy fee from the escrow contract
+        Get the entropy fee from the pyth entropy v2 contract
         This is used for dispute randomness generation
 
         Returns:
             int: Fee in wei
         """
         try:
-            # Call getFee() from contract
-            fee = self.escrow_contract.functions.getFee().call()
-            return fee
+            # Call getFeeV2() from pyth entropy v2 contract
+            fee = self.entropy_v2_contract.functions.getFeeV2().call()
+            return int(fee*1.1)
         except Exception as e:
             print(f"Error getting entropy fee: {e}")
             # Default fallback (0.001 ETH)

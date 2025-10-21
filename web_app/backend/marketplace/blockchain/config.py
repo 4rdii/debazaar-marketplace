@@ -38,6 +38,7 @@ CONTRACT_ADDRESSES = {
         'escrow': '0xd6CE4fF483418b02e90d1D346Af9C7f8BE404334',
         'arbiter': '0xdc58De22A66c81672dA2D885944d343E9d2BFB04',
         'functions_consumer': '0x0A77e401Ea1808e5d91314DE09f12072774b0953',
+        'entropy_v2': '0x549ebba8036ab746611b4ffa1423eb0a4df61440',
     },
     'arbitrum_one': {
         'escrow': None,  # TODO: Add when deployed to mainnet
@@ -95,6 +96,19 @@ ERC20_ABI = [
     {"constant": True, "inputs": [{"name": "_owner", "type": "address"}, {"name": "_spender", "type": "address"}], "name": "allowance", "outputs": [{"name": "", "type": "uint256"}], "payable": False, "stateMutability": "view", "type": "function"},
 ]
 
+# PYTH Entropy V2 ABI
+
+ENTROPY_V2_ABI = [
+    {
+        "inputs": [],
+        "name": "getFeeV2",
+        "outputs": [
+            {"internalType": "uint128", "name": "", "type": "uint128"}
+        ],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
 
 def get_network_config(network_name=None):
     """Get network configuration"""
