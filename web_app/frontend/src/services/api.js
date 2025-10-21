@@ -108,5 +108,69 @@ export const api = {
             throw new Error(errorData.error || 'Failed to finalize listing');
         }
         return response.json();
+    },
+
+    // === BUYER PURCHASE ENDPOINTS ===
+
+    /**
+     * Build unsigned transaction for ERC20 token approval
+     * @param {number} listingId - Listing ID
+     * @param {string} buyerWallet - Buyer wallet address
+     * @returns {Promise<{success: boolean, transaction: Object}>}
+     */
+    approveTokenTransaction: async (listingId, buyerWallet) => {
+        const response = await fetch(`${API_BASE}/orders/approve-token-transaction/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listing_id: listingId, buyer_wallet: buyerWallet })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to build approval transaction');
+        }
+        return response.json();
+    },
+
+    /**
+     * Build unsigned transaction for purchasing listing
+     * @param {number} listingId - Listing ID
+     * @param {string} buyerWallet - Buyer wallet address
+     * @param {number} deadlineDays - Deadline in days
+     * @returns {Promise<{success: boolean, transaction: Object, order_id: number}>}
+     */
+    purchaseListingTransaction: async (listingId, buyerWallet, deadlineDays = 7) => {
+        const response = await fetch(`${API_BASE}/orders/purchase-transaction/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                listing_id: listingId,
+                buyer_wallet: buyerWallet,
+                deadline_days: deadlineDays
+            })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to build purchase transaction');
+        }
+        return response.json();
+    },
+
+    /**
+     * Confirm purchase transaction was sent
+     * @param {number} orderId - Order ID
+     * @param {string} txHash - Transaction hash
+     * @returns {Promise<{success: boolean}>}
+     */
+    confirmPurchase: async (orderId, txHash) => {
+        const response = await fetch(`${API_BASE}/orders/${orderId}/confirm-purchase/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tx_hash: txHash })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to confirm purchase');
+        }
+        return response.json();
     }
 };
