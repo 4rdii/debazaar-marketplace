@@ -25,6 +25,8 @@ urlpatterns = [
     # Blockchain Transaction Endpoints - Seller Delivers
     path('orders/<int:pk>/deliver-transaction/', views.DeliverListingTransactionView.as_view(), name='deliver_listing_transaction'),
     path('orders/<int:pk>/confirm-delivery-transaction/', views.ConfirmDeliveryTransactionView.as_view(), name='confirm_delivery_transaction'),
+    path('listings/<int:pk>/deliver-transaction/', views.DeliverListingTransactionByListingView.as_view(), name='deliver_listing_transaction_by_listing'),
+    path('listings/<int:pk>/confirm-delivery-transaction/', views.ConfirmDeliveryTransactionByListingView.as_view(), name='confirm_delivery_transaction_by_listing'),
 
     # Blockchain Transaction Endpoints - Buyer Accepts/Disputes
     path('orders/<int:pk>/accept-transaction/', views.AcceptDeliveryTransactionView.as_view(), name='accept_delivery_transaction'),

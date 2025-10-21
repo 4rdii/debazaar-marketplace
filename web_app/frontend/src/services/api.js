@@ -172,5 +172,43 @@ export const api = {
             throw new Error(errorData.error || 'Failed to confirm purchase');
         }
         return response.json();
+    },
+
+    /**
+     * Build unsigned transaction for delivery
+     * @param {number} listingId - Listing ID
+     * @param {string} sellerWallet - Seller wallet address
+     * @returns {Promise<{success: boolean, transaction: Object}>}
+     */
+    deliverListingTransaction: async (listingId, sellerWallet) => {
+        const response = await fetch(`${API_BASE}/listings/${listingId}/deliver-transaction/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ seller_wallet: sellerWallet })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to build delivery transaction');
+        }
+        return response.json();
+    },
+
+    /**
+     * Confirm delivery transaction was sent
+     * @param {number} listingId - Listing ID
+     * @param {string} txHash - Transaction hash
+     * @returns {Promise<{success: boolean}>}
+     */
+    confirmDeliveryTransaction: async (listingId, txHash) => {
+        const response = await fetch(`${API_BASE}/listings/${listingId}/confirm-delivery-transaction/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tx_hash: txHash })
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to confirm delivery');
+        }
+        return response.json();
     }
 };

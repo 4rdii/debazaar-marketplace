@@ -802,12 +802,133 @@ class ConfirmDeliveryTransactionView(generics.GenericAPIView):
         order.status = 'delivered'
         order.save()
 
+        # Update listing status
+        order.listing.status = 'delivered'
+        order.listing.save()
+
         return Response({
             'success': True,
             'message': 'Delivery confirmed! Waiting for buyer acceptance...',
             'tx_hash': tx_hash,
             'order_id': order.id
         }, status=status.HTTP_200_OK)
+
+
+class DeliverListingTransactionByListingView(generics.GenericAPIView):
+    """
+    Build unsigned transaction for delivery by listing ID
+    """
+    serializer_class = DeliverListingTransactionSerializer
+    queryset = Listing.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        # Get listing
+        listing = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Verify seller
+        seller_wallet = data['seller_wallet']
+        if listing.seller.username != seller_wallet:
+            return Response({
+                'error': 'Only the seller can mark as delivered'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Check listing status
+        if listing.status != 'filled':
+            return Response({
+                'error': f'Cannot deliver listing in status: {listing.status}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Build delivery transaction
+        try:
+            transaction = transaction_builder.build_deliver_disputable_transaction(
+                listing_id=listing.blockchain_listing_id,
+                from_address=seller_wallet
+            )
+
+            return Response({
+                'success': True,
+                'transaction': transaction,
+                'message': 'Delivery transaction ready. Please sign with your wallet.'
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'error': f'Failed to build transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ConfirmDeliveryTransactionByListingView(generics.GenericAPIView):
+    """
+    Confirm delivery transaction was sent by listing ID
+    """
+    serializer_class = ConfirmTransactionSerializer
+    queryset = Listing.objects.all()
+
+    def post(self, request, *args, **kwargs):
+        from web3 import Web3
+        from .blockchain.config import get_network_config, get_contract_address
+        import time
+
+        # Get listing
+        listing = self.get_object()
+
+        # Validate input data
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        tx_hash = serializer.validated_data['tx_hash']
+
+        # Connect to blockchain
+        network_config = get_network_config()
+        w3 = Web3(Web3.HTTPProvider(network_config['rpc_url']))
+
+        try:
+            # Wait for transaction receipt
+            time.sleep(3)
+            tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
+
+            # Check if transaction was successful
+            if tx_receipt['status'] != 1:
+                return Response({
+                    'success': False,
+                    'error': 'Transaction failed on blockchain'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Verify the transaction is for our contract
+            escrow_address = get_contract_address('escrow')
+            if tx_receipt['to'].lower() != escrow_address.lower():
+                return Response({
+                    'success': False,
+                    'error': 'Transaction is not for the escrow contract'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Update listing status
+            listing.status = 'delivered'
+            listing.save()
+
+            # Update order status if exists
+            order = listing.orders.filter(status='paid').first()
+            if order:
+                order.status = 'delivered'
+                order.save()
+
+            return Response({
+                'success': True,
+                'message': 'Delivery confirmed! Waiting for buyer acceptance...',
+                'tx_hash': tx_hash,
+                'listing_id': listing.id
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Failed to verify transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ==================== BUYER ACCEPTANCE/DISPUTE ENDPOINTS ====================

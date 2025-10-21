@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { formatPriceWithCurrency } from '../utils/priceFormatter';
+import { api } from '../services/api';
+import { getStoredAuth } from '../services/auth';
+import { sendTransaction, waitForTransaction } from '../services/blockchain';
 import './MyProductCard.css';
 
-const MyProductCard = ({ product, onWatchClick, onDelete }) => {
+const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isDelivering, setIsDelivering] = useState(false);
 
     console.log('MyProductCard rendered for product:', product.title);
 
@@ -18,6 +22,40 @@ const MyProductCard = ({ product, onWatchClick, onDelete }) => {
             } finally {
                 setIsDeleting(false);
             }
+        }
+    };
+
+    const handleDeliver = async () => {
+        const auth = getStoredAuth();
+        if (!auth || !auth.walletAddress) {
+            alert('Please connect your wallet first!');
+            return;
+        }
+
+        setIsDelivering(true);
+        try {
+            // Build delivery transaction
+            const deliveryData = await api.deliverListingTransaction(product.id, auth.walletAddress);
+
+            // Send transaction
+            const txHash = await sendTransaction(deliveryData.transaction);
+
+            // Wait for confirmation
+            await waitForTransaction(txHash);
+
+            // Confirm delivery on backend
+            await api.confirmDeliveryTransaction(product.id, txHash);
+
+            alert('✅ Product marked as delivered!');
+
+            if (onDelivered) {
+                onDelivered(product.id);
+            }
+        } catch (error) {
+            console.error('Delivery error:', error);
+            alert(`Failed to mark as delivered: ${error.message}`);
+        } finally {
+            setIsDelivering(false);
         }
     };
 
@@ -42,6 +80,16 @@ const MyProductCard = ({ product, onWatchClick, onDelete }) => {
                 </div>
                 <div className="product-actions">
                     <button className="view-btn" onClick={() => onWatchClick(product)}>View</button>
+                    {product.status === 'filled' && (
+                        <button
+                            className="deliver-btn"
+                            onClick={handleDeliver}
+                            disabled={isDelivering}
+                            style={{ backgroundColor: '#28a745', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            {isDelivering ? 'Delivering...' : '📦 Delivered'}
+                        </button>
+                    )}
                     <button
                         className="delete-btn"
                         onClick={handleDelete}
