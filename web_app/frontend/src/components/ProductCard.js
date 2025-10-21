@@ -2,7 +2,14 @@ import React from 'react';
 import { formatPriceWithCurrency } from '../utils/priceFormatter';
 import { formatAddress } from '../utils/metamask';
 
-const ProductCard = ({ product, onWatchClick }) => {
+const ProductCard = ({ product, onWatchClick, onBuyClick }) => {
+    const handleBuyClick = (e) => {
+        e.stopPropagation();
+        if (onBuyClick) {
+            onBuyClick(product);
+        }
+    };
+
     return (
         <div className="product-card">
             {product.image_url && (
@@ -23,7 +30,7 @@ const ProductCard = ({ product, onWatchClick }) => {
                     {product.is_expired && <span className="expired-badge">⏰ Expired</span>}
                 </div>
                 <div className="product-actions">
-                    <button className="buy-now-btn">Buy It Now</button>
+                    <button className="buy-now-btn" onClick={handleBuyClick}>Buy It Now</button>
                     <button className="watch-btn" onClick={() => onWatchClick(product)}>Watch</button>
                 </div>
             </div>

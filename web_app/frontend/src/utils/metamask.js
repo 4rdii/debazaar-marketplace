@@ -292,7 +292,44 @@ export const disconnectWallet = () => {
 export const getNetworkName = (chainId) => {
     const networks = {
         42161: 'Arbitrum One',
-        421614: 'Arbitrum Sepolia'
+        421614: 'Arbitrum Sepolia',
+        11155111: 'Ethereum Sepolia (Unsupported - Please switch to Arbitrum Sepolia)'
     };
     return networks[chainId] || `Unsupported Network (${chainId})`;
+};
+
+/**
+ * Check if current network is supported
+ * Returns: boolean
+ */
+export const isCorrectNetwork = async () => {
+    const chainId = await getCurrentChainId();
+    // Only Arbitrum Sepolia (421614) is supported for testnet
+    return chainId === 421614 || chainId === 42161;
+};
+
+/**
+ * Prompt user to switch to Arbitrum Sepolia if on wrong network
+ */
+export const ensureCorrectNetwork = async () => {
+    const isCorrect = await isCorrectNetwork();
+
+    if (!isCorrect) {
+        const chainId = await getCurrentChainId();
+        const currentNetwork = getNetworkName(chainId);
+
+        const userConfirmed = window.confirm(
+            `You are connected to ${currentNetwork}.\n\n` +
+            `This app requires Arbitrum Sepolia network.\n\n` +
+            `Would you like to switch to Arbitrum Sepolia now?`
+        );
+
+        if (userConfirmed) {
+            return await switchNetwork('ARBITRUM_SEPOLIA');
+        }
+
+        return false;
+    }
+
+    return true;
 };

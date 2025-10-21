@@ -164,6 +164,10 @@ function App() {
         setSelectedProduct(product);
     };
 
+    const handleBuyClick = (product) => {
+        setSelectedProduct(product);
+    };
+
     const handleCloseProductDetail = () => {
         setSelectedProduct(null);
     };
@@ -284,6 +288,7 @@ function App() {
                             key={product.id}
                             product={product}
                             onWatchClick={handleWatchClick}
+                            onBuyClick={handleBuyClick}
                         />
                     ))}
                 </div>

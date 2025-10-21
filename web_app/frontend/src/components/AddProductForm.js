@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../services/api';
 import { sendTransaction, waitForTransaction } from '../services/blockchain';
 import { getStoredAuth } from '../services/auth';
+import { ensureCorrectNetwork } from '../utils/metamask';
 
 const AddProductForm = ({ onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
@@ -81,6 +82,12 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         setIsSubmitting(true);
 
         try {
+            // STEP 0: Ensure correct network
+            const networkCorrect = await ensureCorrectNetwork();
+            if (!networkCorrect) {
+                throw new Error('Please switch to Arbitrum Sepolia network to continue');
+            }
+
             // STEP 1: Build unsigned transaction
             setSubmissionStatus('building');
             console.log('Step 1: Building transaction...');

@@ -1,10 +1,57 @@
 import React, { useState } from 'react';
 import { formatPriceWithCurrency } from '../utils/priceFormatter';
+import { getStoredAuth } from '../services/auth';
+import { ensureCorrectNetwork } from '../utils/metamask';
 
 const ProductDetailModal = ({ product, onClose }) => {
     const [showContact, setShowContact] = useState(false);
+    const [isPurchasing, setIsPurchasing] = useState(false);
 
     if (!product) return null;
+
+    const handlePurchase = async () => {
+        // Check authentication
+        const auth = getStoredAuth();
+        if (!auth || !auth.walletAddress) {
+            alert('Please connect your wallet first!');
+            return;
+        }
+
+        // Check if buyer is trying to buy their own listing (allow for testing)
+        if (auth.authUser.username === product.seller.username) {
+            const confirmSelfPurchase = window.confirm(
+                '⚠️ WARNING: You are about to purchase your own listing!\n\n' +
+                'This is only allowed for testing purposes.\n\n' +
+                'Continue?'
+            );
+            if (!confirmSelfPurchase) {
+                return;
+            }
+        }
+
+        // Check network
+        const networkCorrect = await ensureCorrectNetwork();
+        if (!networkCorrect) {
+            alert('Please switch to Arbitrum Sepolia network to continue');
+            return;
+        }
+
+        setIsPurchasing(true);
+
+        try {
+            // TODO: Implement purchase flow
+            // 1. Approve token
+            // 2. Purchase listing
+            // 3. Wait for confirmation
+            console.log('Starting purchase for listing:', product.id);
+            alert('Purchase flow coming soon!');
+        } catch (error) {
+            console.error('Purchase error:', error);
+            alert(`Purchase failed: ${error.message}`);
+        } finally {
+            setIsPurchasing(false);
+        }
+    };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -118,9 +165,10 @@ const ProductDetailModal = ({ product, onClose }) => {
                             ) : (
                                 <button
                                     className="buy-button-large"
-                                    onClick={() => alert('Escrow purchase flow will be implemented with smart contract integration')}
+                                    onClick={handlePurchase}
+                                    disabled={isPurchasing}
                                 >
-                                    Buy It Now
+                                    {isPurchasing ? 'Processing...' : 'Buy It Now'}
                                 </button>
                             )}
                         </div>
