@@ -187,7 +187,7 @@ class PrivyAuthView(APIView):
 
 class ListingsView(generics.ListCreateAPIView):
     """List all listings or create new listing"""
-    queryset = Listing.objects.filter(status='active', is_deleted=False)
+    queryset = Listing.objects.filter(is_deleted=False, status__in=['open', 'filled', 'delivered', 'disputed'])
     serializer_class = ListingSerializer
     filterset_class = ListingFilter
     search_fields = ['title', 'description']
@@ -503,7 +503,7 @@ class FinalizeListingView(generics.GenericAPIView):
         # For now, we'll trust the frontend
 
         # Activate the listing
-        listing.status = 'active'
+        listing.status = 'open'
         listing.blockchain_status = 'confirmed'
         listing.save()
 
@@ -583,10 +583,10 @@ class PurchaseListingTransactionView(generics.GenericAPIView):
 
         # Get listing
         try:
-            listing = Listing.objects.get(id=data['listing_id'], status='active')
+            listing = Listing.objects.get(id=data['listing_id'], status='open')
         except Listing.DoesNotExist:
             return Response({
-                'error': 'Active listing not found'
+                'error': 'Open listing not found'
             }, status=status.HTTP_404_NOT_FOUND)
 
         # Get buyer user
@@ -663,6 +663,10 @@ class ConfirmPurchaseView(generics.GenericAPIView):
     queryset = Order.objects.all()
 
     def post(self, request, *args, **kwargs):
+        from web3 import Web3
+        from .blockchain.config import get_network_config, get_contract_address, ESCROW_ABI
+        import time
+
         # Get order
         order = self.get_object()
 
@@ -672,21 +676,51 @@ class ConfirmPurchaseView(generics.GenericAPIView):
 
         tx_hash = serializer.validated_data['tx_hash']
 
-        # Update order with transaction hash
-        order.escrow_tx_hash = tx_hash
-        order.status = 'paid'
-        order.save()
+        # Connect to blockchain
+        network_config = get_network_config()
+        w3 = Web3(Web3.HTTPProvider(network_config['rpc_url']))
 
-        # Update listing status to sold
-        order.listing.status = 'sold'
-        order.listing.save()
+        try:
+            # Wait for transaction receipt (with timeout)
+            time.sleep(3)
+            tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
 
-        return Response({
-            'success': True,
-            'message': 'Purchase confirmed! Waiting for seller delivery...',
-            'tx_hash': tx_hash,
-            'order_id': order.id
-        }, status=status.HTTP_200_OK)
+            # Check if transaction was successful
+            if tx_receipt['status'] != 1:
+                return Response({
+                    'success': False,
+                    'error': 'Transaction failed on blockchain'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Verify the transaction is for our contract
+            escrow_address = get_contract_address('escrow')
+            if tx_receipt['to'].lower() != escrow_address.lower():
+                return Response({
+                    'success': False,
+                    'error': 'Transaction is not for the escrow contract'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Update order with transaction hash
+            order.escrow_tx_hash = tx_hash
+            order.status = 'paid'
+            order.save()
+
+            # Update listing status to filled
+            order.listing.status = 'filled'
+            order.listing.save()
+
+            return Response({
+                'success': True,
+                'message': 'Purchase confirmed! Waiting for seller delivery...',
+                'tx_hash': tx_hash,
+                'order_id': order.id
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Failed to verify transaction: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ==================== SELLER TRANSACTION ENDPOINTS ====================

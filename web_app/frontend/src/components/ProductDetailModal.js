@@ -5,7 +5,7 @@ import { ensureCorrectNetwork } from '../utils/metamask';
 import { api } from '../services/api';
 import { sendTransaction, waitForTransaction } from '../services/blockchain';
 
-const ProductDetailModal = ({ product, onClose }) => {
+const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
     const [showContact, setShowContact] = useState(false);
     const [isPurchasing, setIsPurchasing] = useState(false);
     const [purchaseStatus, setPurchaseStatus] = useState('');
@@ -88,6 +88,12 @@ const ProductDetailModal = ({ product, onClose }) => {
 
             // Success!
             alert('✅ Purchase successful! Your order is now being processed.');
+
+            // Call success callback to refresh products list
+            if (onPurchaseSuccess) {
+                onPurchaseSuccess();
+            }
+
             onClose();
 
         } catch (error) {

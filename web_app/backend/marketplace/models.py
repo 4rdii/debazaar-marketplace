@@ -40,9 +40,14 @@ class UserProfile(models.Model):
 
 class Listing(models.Model):
     STATUS_CHOICES = [
-        ('active', 'Active'),
-        ('inactive', 'Inactive'),
-        ('sold', 'Sold'),
+        ('open', 'Open'),  # listing is open for purchase
+        ('filled', 'Filled'),  # buyer has paid for the listing
+        ('delivered', 'Delivered'),  # seller has delivered the listing
+        ('released', 'Released'),  # funds have been released to the seller
+        ('refunded', 'Refunded'),  # funds have been refunded to the buyer
+        ('disputed', 'Disputed'),  # in disputation phase, only for disputable escrow type
+        ('canceled', 'Canceled'),  # listing has been canceled
+        ('inactive', 'Inactive'),  # listing not yet confirmed on blockchain
     ]
     
     PAYMENT_METHOD_CHOICES = [
@@ -70,7 +75,7 @@ class Listing(models.Model):
     escrow_type = models.CharField(max_length=20, choices=ESCROW_TYPE_CHOICES, blank=True, null=True, help_text="Type of escrow (only for escrow payment method)")
     seller_contact = models.CharField(max_length=200, blank=True, null=True, help_text="Contact info for direct payment method (email, telegram, etc)")
     listing_duration_days = models.IntegerField(default=30, help_text="Number of days the listing will be active")
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
     is_deleted = models.BooleanField(default=False, help_text="Soft delete flag")
 
     # Blockchain-related fields

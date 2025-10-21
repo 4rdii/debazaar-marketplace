@@ -172,6 +172,11 @@ function App() {
         setSelectedProduct(null);
     };
 
+    const handlePurchaseSuccess = () => {
+        // Reload products list to reflect that the purchased item is no longer available
+        loadProducts(searchQuery.trim() ? { search: searchQuery } : {});
+    };
+
     // Debounced search function
     const debouncedSearch = useCallback((query) => {
         if (searchTimeout) {
@@ -305,6 +310,7 @@ function App() {
                 <ProductDetailModal
                     product={selectedProduct}
                     onClose={handleCloseProductDetail}
+                    onPurchaseSuccess={handlePurchaseSuccess}
                 />
             )}
 
