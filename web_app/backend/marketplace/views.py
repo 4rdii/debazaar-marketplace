@@ -1093,11 +1093,8 @@ class DisputeListingTransactionView(generics.GenericAPIView):
                 'error': f'Cannot dispute order in status: {order.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Get entropy fee from contract
-        try:
-            entropy_fee = transaction_builder.get_entropy_fee()
-        except Exception as e:
-            entropy_fee = int(0.001 * 10**18)  # Fallback: 0.001 ETH
+        # Get entropy fee from contract (fixed value for Arbitrum Sepolia)
+        entropy_fee = 414405000000001  # Fixed entropy fee in wei
 
         # Build dispute transaction
         try:

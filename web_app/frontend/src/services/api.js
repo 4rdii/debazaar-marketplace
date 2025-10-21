@@ -272,7 +272,7 @@ export const api = {
         const response = await fetch(`${API_BASE}/orders/${orderId}/dispute-transaction/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ buyer_wallet: buyerWallet })
+            body: JSON.stringify({ wallet_address: buyerWallet })
         });
         if (!response.ok) {
             const errorData = await response.json();
