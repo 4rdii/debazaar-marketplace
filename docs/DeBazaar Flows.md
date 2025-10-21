@@ -1,4 +1,4 @@
-# Debazaar Escrow Flows
+# DeBazaar Flows
 
 This project supports three escrow flows in `DebazaarEscrow`:
 
@@ -55,7 +55,7 @@ States: Open → Filled → Delivered → Released/Refunded (or Canceled/Dispute
     - Seller creates an escrow listing and emits `DeBazaar__ListingCreated`
     - After the negotiation phase, Buyer locks funds in the Escrow using `fillListing()`.
     - After Seller transferred assets off-chain (e.g., a rare skin in a game), he calls `deliverApiApprovalListing(listingId, donHostedSecretsSlotID, donHostedSecretsVersion, subscriptionId, gasLimit, donID)` on the Escrow contract.
-    - This call on the Escrow contract calls the `sendRequest()` on `FunctionsConsumerDebazaarUpgradeable` which is a ChainLink's [`FunctionClient`](https://github.com/smartcontractkit/chainlink-brownie-contracts/blob/main/contracts/src/v0.8/functions/v1_0_0/FunctionsClient.sol).
+    - This call on the Escrow contract calls the `sendRequest()` on `FunctionsConsumerUpgradeable` which is a ChainLink's [`FunctionClient`](https://github.com/smartcontractkit/chainlink-brownie-contracts/blob/main/contracts/src/v0.8/functions/v1_0_0/FunctionsClient.sol).
     - ChainLink queries the API of the asset centralized provider (e.g., the gaming company), and after getting the `response` calls `fullfillRequest(linstingId, response, err)`.
     - Happy Path:
       - Escrow unlocks the fund and fee using `resolveListing(listingId, toBuyer: false)`.
