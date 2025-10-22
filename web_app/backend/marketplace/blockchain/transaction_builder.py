@@ -6,6 +6,7 @@ Uses dynamic ABI loading from Arbiscan via ContractService
 
 import time
 import hashlib
+import os
 from web3 import Web3
 from .config import (
     get_network_config,
@@ -495,7 +496,44 @@ class TransactionBuilder:
         request_id = Web3.to_bytes(hexstr='0x' + '00' * 32)
         return self.w3.eth.abi.encode_abi(['string', 'bytes', 'string[]', 'bytes[]', 'bytes32'], [source, encrypted_secrets_urls, args, bytes_args, request_id])
 
+    def script_flattener(self, script_path):
+        """
+        Flatten the script
 
+        Args:
+            script_path (str): Absolute path to a Chainlink Functions .js script
+
+        Returns:
+            str: Flattened script
+        """
+        # TODO: I wrote this one, assuming we will save functions in an static folder and load them from there
+        # Please check if this approach is correct. If not, please rewrite that part. We can also save the scripts in the flatended form in the database.
+        # also I didnt test the python implementation of this function, it needs to be tested.
+        # One last thing, I didnt know where else to put this function, so I put it here. Please move it to the correct place.
+
+        if not isinstance(script_path, str):
+            raise TypeError("script must be an absolute file path string")
+        script_path = script
+        if not os.path.isabs(script_path):
+            raise ValueError("Expected an absolute file path for Chainlink Functions script")
+        if not os.path.exists(script_path):
+            raise FileNotFoundError(f"Chainlink Functions script not found: {script_path}")
+
+        with open(script_path, 'r', encoding='utf-8') as f:
+            script = f.read()
+
+        # Normalize content
+        if isinstance(script, bytes):
+            script = script.decode('utf-8', errors='ignore')
+        # Strip UTF-8 BOM if present and normalize newlines
+        script = script.replace('\r\n', '\n').replace('\r', '\n')
+        if script.startswith('\ufeff'):
+            script = script.lstrip('\ufeff')
+
+        # Optionally trim trailing spaces on each line
+        script = '\n'.join(line.rstrip() for line in script.split('\n'))
+
+        return script
 
 # Create singleton instance
 transaction_builder = TransactionBuilder()
