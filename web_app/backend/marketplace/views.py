@@ -413,6 +413,12 @@ class CreateListingTransactionView(generics.GenericAPIView):
                 'error': f"Token {data['currency']} not supported"
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Get contract service (use default network)
+        contract_service = ContractService()
+
+        # Get token decimals
+        token_decimals = contract_service.get_token_decimals(token_address)
+
         # Create listing in database with pending status
         listing = Listing.objects.create(
             seller=user,
@@ -421,6 +427,7 @@ class CreateListingTransactionView(generics.GenericAPIView):
             price=data['price'],
             currency=data['currency'],
             token_address=token_address,
+            token_decimals=token_decimals,
             image_url=data.get('image_url', ''),
             payment_method='escrow',
             escrow_type=data['escrow_type'],
@@ -431,9 +438,6 @@ class CreateListingTransactionView(generics.GenericAPIView):
             blockchain_expiration=blockchain_expiration
         )
 
-        # Get contract service
-        contract_service = ContractService(network_name=listing.network_name)
-
         # Build unsigned transaction
         transaction = transaction_builder.build_create_listing_transaction(
             listing_id=listing_id,
@@ -442,7 +446,7 @@ class CreateListingTransactionView(generics.GenericAPIView):
             expiration_timestamp=blockchain_expiration,
             escrow_type=data['escrow_type'],
             from_address=seller_wallet,
-            token_decimals=contract_service.get_token_decimals(token_address)
+            token_decimals=token_decimals
         )
 
         return Response({
@@ -551,13 +555,15 @@ class ApproveTokenTransactionView(generics.GenericAPIView):
         
         # Build approval transaction
         try:
-            contract_service = ContractService(network_name=listing.network_name)
+            contract_service = ContractService()
             current_allowance = contract_service.get_token_allowance(
                 listing.token_address,
                 data['buyer_wallet'],
                 transaction_builder.escrow_address
             )
-            if current_allowance >= float(listing.price):
+            # Convert price to wei for comparison
+            price_in_wei = int(float(listing.price) * 10**listing.token_decimals)
+            if current_allowance >= price_in_wei:
                 return Response({
                     'success': True,
                     'message': 'Token already approved'

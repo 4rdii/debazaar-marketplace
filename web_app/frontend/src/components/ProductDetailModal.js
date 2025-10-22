@@ -53,13 +53,18 @@ const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
             const approvalData = await api.approveTokenTransaction(product.id, auth.walletAddress);
             console.log('Approval transaction built:', approvalData);
 
-            console.log('Step 2: Please approve token spending in MetaMask...');
-            const approvalTxHash = await sendTransaction(approvalData.transaction);
-            console.log('Approval transaction sent:', approvalTxHash);
+            // Check if approval is needed
+            if (approvalData.transaction) {
+                console.log('Step 2: Please approve token spending in MetaMask...');
+                const approvalTxHash = await sendTransaction(approvalData.transaction);
+                console.log('Approval transaction sent:', approvalTxHash);
 
-            console.log('Step 3: Waiting for approval confirmation...');
-            await waitForTransaction(approvalTxHash);
-            console.log('Token approval confirmed!');
+                console.log('Step 3: Waiting for approval confirmation...');
+                await waitForTransaction(approvalTxHash);
+                console.log('Token approval confirmed!');
+            } else {
+                console.log('Token already approved, skipping approval step.');
+            }
 
             // STEP 2: Purchase listing
             setPurchaseStatus('purchasing');
