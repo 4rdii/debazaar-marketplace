@@ -185,6 +185,10 @@ body {
     transform: rotate(-15deg);
 }
 
+.reserved-badge {
+    background-color: #ff9800;
+}
+
 .product-card:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     border-color: #0064d2;

@@ -12,7 +12,12 @@ const ProductCard = ({ product, onWatchClick, onBuyClick }) => {
 
     return (
         <div className="product-card">
-            {['filled', 'delivered', 'disputed', 'released'].includes(product.status) && (
+            {product.status === 'filled' && (
+                <div className="sold-overlay">
+                    <div className="sold-badge reserved-badge">RESERVED</div>
+                </div>
+            )}
+            {['delivered', 'disputed', 'released'].includes(product.status) && (
                 <div className="sold-overlay">
                     <div className="sold-badge">SOLD</div>
                 </div>
