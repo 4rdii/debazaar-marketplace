@@ -72,7 +72,8 @@ class TransactionBuilder:
         amount_in_tokens,
         expiration_timestamp,
         escrow_type='disputable',
-        from_address=None
+        from_address=None, 
+        token_decimals=6
     ):
         """
         Build unsigned transaction for createListing
@@ -84,7 +85,7 @@ class TransactionBuilder:
             expiration_timestamp (int): Unix timestamp when listing expires
             escrow_type (str): Escrow type ('disputable', 'api_approval', 'onchain_approval')
             from_address (str): Seller's wallet address
-
+            token_decimals (int): Token decimals
         Returns:
             dict: Unsigned transaction data
         """
@@ -94,7 +95,7 @@ class TransactionBuilder:
             raise ValueError(f"Token {token_symbol} not found on {self.network_name}")
 
         # Convert amount to wei (assuming 6 decimals for USDC/USDT/PYUSD)
-        amount_wei = int(amount_in_tokens * 10**6)
+        amount_wei = int(amount_in_tokens * 10**token_decimals)
 
         # Get escrow type enum value
         escrow_type_value = ESCROW_TYPES.get(escrow_type)
@@ -196,7 +197,8 @@ class TransactionBuilder:
         self,
         token_symbol,
         amount_in_tokens,
-        from_address=None
+        from_address=None, 
+        token_decimals=6
     ):
         """
         Build unsigned transaction for ERC20 token approval
@@ -205,7 +207,7 @@ class TransactionBuilder:
             token_symbol (str): Token symbol ('PYUSD', 'USDC', 'USDT')
             amount_in_tokens (float): Amount in token units
             from_address (str): Buyer's wallet address
-
+            token_decimals (int): Token decimals
         Returns:
             dict: Unsigned transaction data
         """
@@ -215,7 +217,7 @@ class TransactionBuilder:
             raise ValueError(f"Token {token_symbol} not found on {self.network_name}")
 
         # Convert amount to wei (assuming 6 decimals for USDC/USDT/PYUSD)
-        amount_wei = int(amount_in_tokens * 10**18)
+        amount_wei = int(amount_in_tokens * 10**token_decimals)
 
         token_contract = self.contract_service.get_erc20_contract(token_address)
 
