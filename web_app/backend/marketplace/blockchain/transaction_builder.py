@@ -467,6 +467,35 @@ class TransactionBuilder:
             # Default fallback (0.001 ETH)
             return int(0.001 * 10**18)
 
+    def create_extra_data_onchain_approval(self, destination, data, expected_result):
+        """
+        Create extra data for onchain approval
+
+        Args:
+            destination (address): Destination address
+            data (bytes): Data
+            expected_result (bytes): Expected result
+
+        Returns:
+            bytes: Extra data
+        """
+        return self.w3.eth.abi.encode_abi(['address', 'bytes', 'bytes'], [destination, data, expected_result])
+
+    def create_extra_data_api_approval(self, source, encrypted_secrets_urls, args, bytes_args):
+        """
+        Create extra data for api approval
+
+        Args:
+            source (str): Source code
+            encrypted_secrets_urls (bytes): Encrypted secrets URLs
+            args (string[]): Arguments
+            bytes_args (bytes[]): Bytes arguments
+
+        """
+        request_id = Web3.to_bytes(hexstr='0x' + '00' * 32)
+        return self.w3.eth.abi.encode_abi(['string', 'bytes', 'string[]', 'bytes[]', 'bytes32'], [source, encrypted_secrets_urls, args, bytes_args, request_id])
+
+
 
 # Create singleton instance
 transaction_builder = TransactionBuilder()
