@@ -37,6 +37,11 @@ const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
             await api.confirmDisputeTransaction(orderId, txHash);
 
             alert('⚠️ Dispute initiated! Awaiting arbiter decision.');
+
+            // Refresh the page to update status
+            if (onDelivered) {
+                onDelivered(product.id);
+            }
         } catch (error) {
             console.error('Dispute error:', error);
             alert(`Failed to initiate dispute: ${error.message}`);
@@ -124,7 +129,7 @@ const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
                             {isDelivering ? 'Delivering...' : '📦 Delivered'}
                         </button>
                     )}
-                    {product.status === 'delivered' && product.delivered_at &&
+                    {product.status === 'delivered' && !product.orders?.some(o => o.status === 'disputed') && product.delivered_at &&
                      (new Date() - new Date(product.delivered_at)) > 10000 && (
                         <button
                             onClick={handleDispute}
