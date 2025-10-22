@@ -24,6 +24,7 @@ from .filters import ListingFilter
 from eth_account.messages import encode_defunct
 from .blockchain.transaction_builder import transaction_builder
 from .blockchain.config import get_token_address
+from .blockchain.contract_service import ContractService
 
 
 class WalletAuthView(generics.GenericAPIView, mixins.CreateModelMixin):
@@ -412,6 +413,12 @@ class CreateListingTransactionView(generics.GenericAPIView):
                 'error': f"Token {data['currency']} not supported"
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Get contract service (use default network)
+        contract_service = ContractService()
+
+        # Get token decimals
+        token_decimals = contract_service.get_token_decimals(token_address)
+
         # Create listing in database with pending status
         listing = Listing.objects.create(
             seller=user,
@@ -420,6 +427,7 @@ class CreateListingTransactionView(generics.GenericAPIView):
             price=data['price'],
             currency=data['currency'],
             token_address=token_address,
+            token_decimals=token_decimals,
             image_url=data.get('image_url', ''),
             payment_method='escrow',
             escrow_type=data['escrow_type'],
@@ -437,7 +445,8 @@ class CreateListingTransactionView(generics.GenericAPIView):
             amount_in_tokens=float(data['price']),
             expiration_timestamp=blockchain_expiration,
             escrow_type=data['escrow_type'],
-            from_address=seller_wallet
+            from_address=seller_wallet,
+            token_decimals=token_decimals
         )
 
         return Response({
@@ -542,22 +551,38 @@ class ApproveTokenTransactionView(generics.GenericAPIView):
             return Response({
                 'error': 'Listing not found'
             }, status=status.HTTP_404_NOT_FOUND)
-
+    
+        
         # Build approval transaction
         try:
-            transaction = transaction_builder.build_approve_token_transaction(
-                token_symbol=listing.currency,
-                amount_in_tokens=float(listing.price),
-                from_address=data['buyer_wallet']
+            contract_service = ContractService()
+            current_allowance = contract_service.get_token_allowance(
+                listing.token_address,
+                data['buyer_wallet'],
+                transaction_builder.escrow_address
             )
+            # Convert price to wei for comparison
+            price_in_wei = int(float(listing.price) * 10**listing.token_decimals)
+            if current_allowance >= price_in_wei:
+                return Response({
+                    'success': True,
+                    'message': 'Token already approved'
+                }, status=status.HTTP_200_OK)
+            else:
+                transaction = transaction_builder.build_approve_token_transaction(
+                    token_symbol=listing.currency,
+                    amount_in_tokens=float(listing.price),
+                    from_address=data['buyer_wallet'],
+                    token_decimals=listing.token_decimals
+                )
 
-            return Response({
-                'success': True,
-                'transaction': transaction,
-                'token_symbol': listing.currency,
-                'amount': float(listing.price),
-                'message': 'Approve transaction ready. Please sign with your wallet.'
-            }, status=status.HTTP_200_OK)
+                return Response({
+                    'success': True,
+                    'transaction': transaction,
+                    'token_symbol': listing.currency,
+                    'amount': float(listing.price),
+                    'message': 'Approve transaction ready. Please sign with your wallet.'
+                }, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({

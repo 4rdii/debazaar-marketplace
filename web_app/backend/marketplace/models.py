@@ -67,6 +67,7 @@ class Listing(models.Model):
     price = models.DecimalField(max_digits=18, decimal_places=8, help_text="Price with up to 8 decimal places for precise crypto amounts")
     currency = models.CharField(max_length=10, choices=CurrencyChoices.choices, default=CurrencyChoices.USDT)
     token_address = models.CharField(max_length=42)
+    token_decimals = models.IntegerField(default=6, help_text="Token decimals (e.g., 6 for USDC/USDT)")
     file_path = models.CharField(max_length=500, blank=True, null=True)
     metadata_cid = models.CharField(max_length=100, blank=True, null=True)
     image_url = models.TextField(default='')
