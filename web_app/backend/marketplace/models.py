@@ -84,6 +84,7 @@ class Listing(models.Model):
     blockchain_status = models.CharField(max_length=20, blank=True, null=True, help_text="pending_tx, confirmed, failed")
     creation_tx_hash = models.CharField(max_length=66, blank=True, null=True, help_text="Transaction hash for createListing")
     blockchain_expiration = models.BigIntegerField(blank=True, null=True, help_text="Unix timestamp for blockchain expiration")
+    delivered_at = models.DateTimeField(blank=True, null=True, help_text="When seller marked as delivered")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -8,8 +8,42 @@ import './MyProductCard.css';
 const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isDelivering, setIsDelivering] = useState(false);
+    const [isDisputing, setIsDisputing] = useState(false);
 
     console.log('MyProductCard rendered for product:', product.title);
+
+    const handleDispute = async () => {
+        const auth = getStoredAuth();
+        if (!auth || !auth.walletAddress) {
+            alert('Please connect your wallet first!');
+            return;
+        }
+
+        const orderId = product.orders?.[0]?.id;
+        if (!orderId) {
+            alert('No order found for this listing');
+            return;
+        }
+
+        setIsDisputing(true);
+        try {
+            // Build dispute transaction
+            const disputeData = await api.disputeDeliveryTransaction(orderId, auth.walletAddress);
+
+            // Send transaction with entropy fee
+            const txHash = await sendTransaction(disputeData.transaction);
+
+            // Confirm dispute on backend
+            await api.confirmDisputeTransaction(orderId, txHash);
+
+            alert('⚠️ Dispute initiated! Awaiting arbiter decision.');
+        } catch (error) {
+            console.error('Dispute error:', error);
+            alert(`Failed to initiate dispute: ${error.message}`);
+        } finally {
+            setIsDisputing(false);
+        }
+    };
 
     const handleDelete = async () => {
         if (window.confirm(`Are you sure you want to delete "${product.title}"?`)) {
@@ -88,6 +122,16 @@ const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
                             style={{ backgroundColor: '#28a745', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                         >
                             {isDelivering ? 'Delivering...' : '📦 Delivered'}
+                        </button>
+                    )}
+                    {product.status === 'delivered' && product.delivered_at &&
+                     (new Date() - new Date(product.delivered_at)) > 10000 && (
+                        <button
+                            onClick={handleDispute}
+                            disabled={isDisputing}
+                            style={{ backgroundColor: '#ff9800', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            {isDisputing ? 'Disputing...' : '⚠️ Dispute'}
                         </button>
                     )}
                     <button

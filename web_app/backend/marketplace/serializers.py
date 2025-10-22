@@ -37,8 +37,8 @@ class ListingSerializer(serializers.ModelSerializer):
                  'token_address', 'file_path', 'metadata_cid', 'image_url',
                  'image_cid', 'payment_method', 'escrow_type', 'seller_contact',
                  'listing_duration_days',
-                 'status', 'seller_rating', 'is_expired', 'expires_at', 'orders', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+                 'status', 'seller_rating', 'is_expired', 'expires_at', 'orders', 'delivered_at', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'delivered_at']
 
     def get_seller_rating(self, obj):
         try:

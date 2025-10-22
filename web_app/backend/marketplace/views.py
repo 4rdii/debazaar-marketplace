@@ -932,8 +932,10 @@ class ConfirmDeliveryTransactionByListingView(generics.GenericAPIView):
                     'error': 'Transaction is not for the escrow contract'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Update listing status
+            # Update listing status and timestamp
+            from django.utils import timezone
             listing.status = 'delivered'
+            listing.delivered_at = timezone.now()
             listing.save()
 
             # Update ALL orders for this listing to delivered
