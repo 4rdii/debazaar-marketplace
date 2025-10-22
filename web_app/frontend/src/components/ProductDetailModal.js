@@ -248,14 +248,14 @@ const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
                         </div>
 
                         <div className="product-detail-actions">
-                            {product.payment_method === 'direct' ? (
+                            {product.status === 'open' && product.payment_method === 'direct' ? (
                                 <button
                                     className="buy-button-large"
                                     onClick={() => setShowContact(!showContact)}
                                 >
                                     {showContact ? 'Hide Contact' : 'Show Contact'}
                                 </button>
-                            ) : (
+                            ) : product.status === 'open' && product.payment_method === 'escrow' ? (
                                 <>
                                     <button
                                         className="buy-button-large"
@@ -278,7 +278,7 @@ const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
                                         </div>
                                     )}
                                 </>
-                            )}
+                            ) : null}
                         </div>
                     </div>
                 </div>

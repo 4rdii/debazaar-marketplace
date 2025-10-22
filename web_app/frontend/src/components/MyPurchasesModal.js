@@ -175,7 +175,7 @@ const MyPurchasesModal = ({ onClose, authUser, onProductClick }) => {
                             {getStatusBadge(purchase.status)}
                         </div>
                         <div className="product-actions">
-                            <button className="view-btn" onClick={() => onProductClick(purchase)}>View</button>
+                            <button className="view-btn" onClick={() => { onClose(); onProductClick(purchase); }}>View</button>
                             {purchase.status === 'delivered' && (
                                 <>
                                     <button

@@ -40,7 +40,9 @@ const ProductCard = ({ product, onWatchClick, onBuyClick }) => {
                     {product.is_expired && <span className="expired-badge">⏰ Expired</span>}
                 </div>
                 <div className="product-actions">
-                    <button className="buy-now-btn" onClick={handleBuyClick}>Buy It Now</button>
+                    {product.status === 'open' && (
+                        <button className="buy-now-btn" onClick={handleBuyClick}>Buy It Now</button>
+                    )}
                     <button className="watch-btn" onClick={() => onWatchClick(product)}>Watch</button>
                 </div>
             </div>
