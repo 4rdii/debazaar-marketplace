@@ -14,6 +14,10 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         payment_method: 'escrow',
         escrow_type: 'disputable',
         onchain_approval_method: 'NFT',
+        nft_contract_address: '',
+        nft_token_id: '',
+        contract_address: '',
+        contract_method: '',
         seller_contact: '',
         listing_duration_days: 30
     });
@@ -405,17 +409,84 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                             </div>
 
                             {formData.escrow_type === 'onchain_approval' && (
-                                <div className="form-field-group">
-                                    <label className="form-label">On-chain Approval Method</label>
-                                    <select name="onchain_approval_method" value={formData.onchain_approval_method} onChange={handleChange}>
-                                        <option value="NFT">NFT Ownership</option>
-                                        <option value="Contract_Ownership">Contract Ownership</option>
-                                        <option value="ERC20">ERC20 Token Balance</option>
-                                    </select>
-                                    <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
-                                        Select the verification method for on-chain approval
-                                    </small>
-                                </div>
+                                <>
+                                    <div className="form-field-group">
+                                        <label className="form-label">On-chain Approval Method</label>
+                                        <select name="onchain_approval_method" value={formData.onchain_approval_method} onChange={handleChange}>
+                                            <option value="NFT">NFT Ownership</option>
+                                            <option value="Contract_Ownership">Contract Ownership</option>
+                                        </select>
+                                        <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                            Select the verification method for on-chain approval
+                                        </small>
+                                    </div>
+
+                                    {formData.onchain_approval_method === 'NFT' && (
+                                        <>
+                                            <div className="form-field-group">
+                                                <label className="form-label">NFT Contract Address</label>
+                                                <input
+                                                    type="text"
+                                                    name="nft_contract_address"
+                                                    placeholder="0x..."
+                                                    value={formData.nft_contract_address}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The NFT contract address to verify ownership
+                                                </small>
+                                            </div>
+                                            <div className="form-field-group">
+                                                <label className="form-label">NFT Token ID</label>
+                                                <input
+                                                    type="text"
+                                                    name="nft_token_id"
+                                                    placeholder="e.g., 1234"
+                                                    value={formData.nft_token_id}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The specific token ID the buyer must own
+                                                </small>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {formData.onchain_approval_method === 'Contract_Ownership' && (
+                                        <>
+                                            <div className="form-field-group">
+                                                <label className="form-label">Contract Address</label>
+                                                <input
+                                                    type="text"
+                                                    name="contract_address"
+                                                    placeholder="0x..."
+                                                    value={formData.contract_address}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The contract address to verify ownership
+                                                </small>
+                                            </div>
+                                            <div className="form-field-group">
+                                                <label className="form-label">Method Signature</label>
+                                                <input
+                                                    type="text"
+                                                    name="contract_method"
+                                                    placeholder="e.g., owner() or ownerOf(uint256)"
+                                                    value={formData.contract_method}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The method to call for verification (e.g., "owner()", "isOwner(address,uint)")
+                                                </small>
+                                            </div>
+                                        </>
+                                    )}
+                                </>
                             )}
                         </>
                     )}
