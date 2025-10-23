@@ -432,6 +432,11 @@ class CreateListingTransactionView(generics.GenericAPIView):
             payment_method='escrow',
             escrow_type=data['escrow_type'],
             listing_duration_days=data['listing_duration_days'],
+            api_approval_method=data.get('api_approval_method'),
+            tweet_username=data.get('tweet_username'),
+            crosschain_rpc_url=data.get('crosschain_rpc_url'),
+            crosschain_nft_contract=data.get('crosschain_nft_contract'),
+            crosschain_token_id=data.get('crosschain_token_id'),
             status='inactive',  # Inactive until blockchain confirmation
             blockchain_listing_id=listing_id,
             blockchain_status='pending_tx',

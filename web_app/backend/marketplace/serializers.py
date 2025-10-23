@@ -38,6 +38,8 @@ class ListingSerializer(serializers.ModelSerializer):
                  'token_address', 'file_path', 'metadata_cid', 'image_url',
                  'image_cid', 'payment_method', 'escrow_type', 'seller_contact',
                  'listing_duration_days',
+                 'api_approval_method', 'tweet_username', 'crosschain_rpc_url',
+                 'crosschain_nft_contract', 'crosschain_token_id',
                  'status', 'seller_rating', 'is_expired', 'expires_at', 'orders', 'buyer_address', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -189,6 +191,13 @@ class CreateListingTransactionSerializer(serializers.Serializer):
         default='disputable'
     )
     listing_duration_days = serializers.IntegerField(min_value=1, max_value=365, default=30)
+
+    # API approval fields
+    api_approval_method = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    tweet_username = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
+    crosschain_rpc_url = serializers.CharField(max_length=200, required=False, allow_blank=True, allow_null=True)
+    crosschain_nft_contract = serializers.CharField(max_length=42, required=False, allow_blank=True, allow_null=True)
+    crosschain_token_id = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
 
     def validate_seller_wallet(self, value):
         """Validate wallet address format"""

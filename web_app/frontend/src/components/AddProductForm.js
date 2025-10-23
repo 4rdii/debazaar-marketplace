@@ -18,6 +18,12 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         nft_token_id: '',
         contract_address: '',
         contract_method: '',
+        api_approval_method: 'tweet_repost',
+        tweet_id: '',
+        tweet_username: '',
+        crosschain_rpc_url: '',
+        crosschain_nft_contract: '',
+        crosschain_token_id: '',
         seller_contact: '',
         listing_duration_days: 30
     });
@@ -138,7 +144,13 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                 currency: listingData.currency,
                 image_url: listingData.image_url,
                 escrow_type: listingData.escrow_type,
-                listing_duration_days: listingData.listing_duration_days
+                listing_duration_days: listingData.listing_duration_days,
+                // API approval fields
+                api_approval_method: listingData.api_approval_method,
+                tweet_username: listingData.tweet_username,
+                crosschain_rpc_url: listingData.crosschain_rpc_url,
+                crosschain_nft_contract: listingData.crosschain_nft_contract,
+                crosschain_token_id: listingData.crosschain_token_id
             });
 
             console.log('Transaction built:', txData);
@@ -440,6 +452,85 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                                     Choose the type of escrow mechanism for this listing
                                 </small>
                             </div>
+
+                            {formData.escrow_type === 'api_approval' && (
+                                <>
+                                    <div className="form-field-group">
+                                        <label className="form-label">API Approval Method</label>
+                                        <select name="api_approval_method" value={formData.api_approval_method} onChange={handleChange}>
+                                            <option value="tweet_repost">Twitter Repost Verification</option>
+                                            <option value="crosschain_nft">Cross-chain NFT Ownership</option>
+                                        </select>
+                                        <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                            Select the API verification method
+                                        </small>
+                                    </div>
+
+                                    {formData.api_approval_method === 'tweet_repost' && (
+                                        <div className="form-field-group">
+                                            <label className="form-label">Your Twitter Username (Seller)</label>
+                                            <input
+                                                type="text"
+                                                name="tweet_username"
+                                                placeholder="e.g., @username"
+                                                value={formData.tweet_username}
+                                                onChange={handleChange}
+                                                required
+                                            />
+                                            <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                Your Twitter username. Buyer will provide the tweet ID to repost after purchase.
+                                            </small>
+                                        </div>
+                                    )}
+
+                                    {formData.api_approval_method === 'crosschain_nft' && (
+                                        <>
+                                            <div className="form-field-group">
+                                                <label className="form-label">RPC URL</label>
+                                                <input
+                                                    type="text"
+                                                    name="crosschain_rpc_url"
+                                                    placeholder="e.g., https://eth.llamarpc.com"
+                                                    value={formData.crosschain_rpc_url}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The RPC endpoint for the NFT's blockchain
+                                                </small>
+                                            </div>
+                                            <div className="form-field-group">
+                                                <label className="form-label">NFT Contract Address</label>
+                                                <input
+                                                    type="text"
+                                                    name="crosschain_nft_contract"
+                                                    placeholder="0x..."
+                                                    value={formData.crosschain_nft_contract}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The NFT contract address to verify ownership
+                                                </small>
+                                            </div>
+                                            <div className="form-field-group">
+                                                <label className="form-label">Token ID</label>
+                                                <input
+                                                    type="text"
+                                                    name="crosschain_token_id"
+                                                    placeholder="e.g., 1234"
+                                                    value={formData.crosschain_token_id}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The specific NFT token ID to verify
+                                                </small>
+                                            </div>
+                                        </>
+                                    )}
+                                </>
+                            )}
 
                             {formData.escrow_type === 'onchain_approval' && (
                                 <>
