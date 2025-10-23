@@ -11,6 +11,7 @@ from .config import (
     get_contract_address,
     get_token_address,
     ESCROW_ABI,
+    ENTROPY_V2_ABI,
     ERC20_ABI,
     DEFAULT_NETWORK
 )
@@ -67,6 +68,23 @@ class ContractService:
         return self.w3.eth.contract(
             address=Web3.to_checksum_address(token_address),
             abi=ERC20_ABI
+        )
+
+    def get_entropyv2_contract(self):
+        """
+        Get entropy v2 contract instance with hardcoded ABI
+
+        Returns:
+            web3.eth.Contract: Entropy v2 contract instance
+        """
+        entropy_v2_address = get_contract_address('entropy_v2', self.network_name)
+        if not entropy_v2_address:
+            raise ValueError(f"Entropy v2 contract not deployed on {self.network_name}")
+
+        # Create contract instance with hardcoded ABI
+        return self.w3.eth.contract(
+            address=Web3.to_checksum_address(entropy_v2_address),
+            abi=ENTROPY_V2_ABI
         )
 
     def get_listing(self, listing_id):
