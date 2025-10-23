@@ -348,9 +348,9 @@ class TransactionBuilder:
                 gas_estimate = contract_function.estimate_gas({'from': from_address})
                 transaction['gas'] = hex(int(gas_estimate * 1.2))
             except Exception as e:
-                transaction['gas'] = hex(1000000)
+                transaction['gas'] = hex(2000000)
         else:
-            transaction['gas'] = hex(1000000)
+            transaction['gas'] = hex(2000000)
 
         return transaction
 
