@@ -11,7 +11,7 @@ async function main() {
   
   // Contract addresses
   const contractAddresses = {
-    debazaarEscrow: "0x9491a2E6Cf08BCCC9416E652Cfa463b3D94D1eb5",
+    debazaarEscrow: "0x8e601797f52AECD270484151Cc39C4074e0E861E",
     debazaarArbiter: "0xdc58De22A66c81672dA2D885944d343E9d2BFB04",
     functionsConsumerProxy: "0x0A77e401Ea1808e5d91314DE09f12072774b0953"
   };
@@ -27,7 +27,8 @@ async function main() {
     "function balanceOf(address owner) view returns (uint256)",
     "function transfer(address to, uint256 amount) returns (bool)",
     "function approve(address spender, uint256 amount) returns (bool)",
-    "function allowance(address owner, address spender) view returns (uint256)"
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function mint(address to, uint256 amount)"
   ];
   
   const testTokenContract = new ethers.Contract(TestToken, erc20Abi, deployer);
@@ -169,6 +170,8 @@ if (btcPrice < 1000) {
   console.log("setConsumerTx", setConsumerTx);
   const deliverTx = await escrow.connect(deployer).deliverApiApprovalListing(
     listingId,
+    [],
+    [],
     donHostedSecretsSlotID,
     donHostedSecretsVersion,
     subscriptionId,

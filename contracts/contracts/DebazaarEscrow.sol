@@ -167,6 +167,8 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
     /// @dev This function emits the DeliveryStarted event.
     function deliverApiApprovalListing(
         bytes32 _listingId,
+        string[] calldata _sellerArgs,
+        bytes[] calldata _sellerBytesArgs,
         uint8 _donHostedSecretsSlotID,
         uint64 _donHostedSecretsVersion,
         uint64 _subscriptionId,
@@ -181,6 +183,19 @@ contract DebazaarEscrow is IDebazaarEscrow, Ownable2Step, ReentrancyGuard {
 
         // Effects
         listing.state = State.Delivered;
+        //TODO, this is extremely gas inefficient, think of a better way to do this, 
+        //@dev we will use it like this for now since the chance of seller's args or bytes_args being more than 1 is unlikely
+        
+        if (_sellerArgs.length > 0) {
+            for (uint256 i = 0; i < _sellerArgs.length; i++) {
+                listing.apiApprovalData.args.push(_sellerArgs[i]);  
+            }
+        }
+        if (_sellerBytesArgs.length > 0) {
+            for (uint256 i = 0; i < _sellerBytesArgs.length; i++) {
+                listing.apiApprovalData.bytesArgs.push(_sellerBytesArgs[i]);
+            }
+        }
         bytes32 requestId = IFunctionsConsumer(s_functionsConsumer).sendRequest(
             listing.apiApprovalData.source,
             listing.apiApprovalData.encryptedSecretsUrls,

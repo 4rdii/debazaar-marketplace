@@ -35,7 +35,7 @@ ARBISCAN_API_KEY = os.environ.get('ARBISCAN_API_KEY', '')
 # Contract Addresses
 CONTRACT_ADDRESSES = {
     'arbitrum_sepolia': {
-        'escrow': '0xd6CE4fF483418b02e90d1D346Af9C7f8BE404334',
+        'escrow': '0x8e601797f52AECD270484151Cc39C4074e0E861E',
         'arbiter': '0xdc58De22A66c81672dA2D885944d343E9d2BFB04',
         'functions_consumer': '0x0A77e401Ea1808e5d91314DE09f12072774b0953',
     },
