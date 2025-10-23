@@ -30,6 +30,7 @@ class ListingSerializer(serializers.ModelSerializer):
     is_expired = serializers.ReadOnlyField()
     expires_at = serializers.ReadOnlyField()
     orders = OrderSimpleSerializer(many=True, read_only=True)
+    buyer_address = serializers.SerializerMethodField()
 
     class Meta:
         model = Listing
@@ -37,7 +38,9 @@ class ListingSerializer(serializers.ModelSerializer):
                  'token_address', 'file_path', 'metadata_cid', 'image_url',
                  'image_cid', 'payment_method', 'escrow_type', 'seller_contact',
                  'listing_duration_days',
-                 'status', 'seller_rating', 'is_expired', 'expires_at', 'orders', 'created_at', 'updated_at']
+                 'api_approval_method', 'tweet_username', 'crosschain_rpc_url',
+                 'crosschain_nft_contract', 'crosschain_token_id',
+                 'status', 'seller_rating', 'is_expired', 'expires_at', 'orders', 'buyer_address', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_seller_rating(self, obj):
@@ -45,6 +48,17 @@ class ListingSerializer(serializers.ModelSerializer):
             return float(obj.seller.userprofile.rating)
         except:
             return 0.0
+
+    def get_buyer_address(self, obj):
+        """Get buyer wallet address from the most recent order"""
+        try:
+            # Get the most recent order for this listing
+            order = obj.orders.filter(status__in=['paid', 'delivered', 'confirmed']).first()
+            if order and order.buyer:
+                return order.buyer.username  # username is the wallet address
+            return None
+        except:
+            return None
 
 
 class CreateListingSerializer(serializers.ModelSerializer):
@@ -178,6 +192,13 @@ class CreateListingTransactionSerializer(serializers.Serializer):
     )
     listing_duration_days = serializers.IntegerField(min_value=1, max_value=365, default=30)
 
+    # API approval fields
+    api_approval_method = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
+    tweet_username = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
+    crosschain_rpc_url = serializers.CharField(max_length=200, required=False, allow_blank=True, allow_null=True)
+    crosschain_nft_contract = serializers.CharField(max_length=42, required=False, allow_blank=True, allow_null=True)
+    crosschain_token_id = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
+
     def validate_seller_wallet(self, value):
         """Validate wallet address format"""
         if not value.startswith('0x') or len(value) != 42:
@@ -245,6 +266,7 @@ class PurchaseListingTransactionSerializer(serializers.Serializer):
     buyer_wallet = serializers.CharField(max_length=42, required=True)
     listing_id = serializers.IntegerField(required=True)
     deadline_days = serializers.IntegerField(min_value=1, max_value=365, default=7)
+    tweet_id = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
 
     def validate_buyer_wallet(self, value):
         """Validate wallet address format"""

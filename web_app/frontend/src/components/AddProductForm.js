@@ -13,6 +13,17 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         image_url: '',
         payment_method: 'escrow',
         escrow_type: 'disputable',
+        onchain_approval_method: 'NFT',
+        nft_contract_address: '',
+        nft_token_id: '',
+        contract_address: '',
+        contract_method: '',
+        api_approval_method: 'tweet_repost',
+        tweet_id: '',
+        tweet_username: '',
+        crosschain_rpc_url: '',
+        crosschain_nft_contract: '',
+        crosschain_token_id: '',
         seller_contact: '',
         listing_duration_days: 30
     });
@@ -65,9 +76,42 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         if (finalFormData.payment_method === 'escrow') {
             await handleBlockchainListing(finalFormData, auth.walletAddress);
         } else {
-            // For direct listings, use old flow
-            console.log('Submitting direct listing:', finalFormData);
-            onSubmit(finalFormData);
+            // For direct listings, create directly via API
+            try {
+                console.log('Submitting direct listing:', finalFormData);
+                console.log('Auth object:', auth);
+
+                if (!auth || !auth.authUser || !auth.authUser.user_id) {
+                    alert('User not authenticated. Please connect your wallet first.');
+                    return;
+                }
+
+                const listingData = {
+                    seller_id: auth.authUser.user_id,
+                    title: finalFormData.title,
+                    description: finalFormData.description,
+                    price: parseFloat(finalFormData.price),
+                    currency: finalFormData.currency,
+                    image_url: finalFormData.image_url,
+                    payment_method: finalFormData.payment_method,
+                    seller_contact: finalFormData.seller_contact,
+                    listing_duration_days: parseInt(finalFormData.listing_duration_days),
+                    token_address: '0x0000000000000000000000000000000000000000',
+                    file_path: '',
+                    metadata_cid: '',
+                    image_cid: '',
+                    escrow_type: null
+                };
+
+                console.log('Listing data to send:', listingData);
+                const result = await api.createListing(listingData);
+                console.log('Direct listing created:', result);
+                alert('✅ Direct listing created successfully!');
+                onSubmit(result);
+            } catch (error) {
+                console.error('Error creating direct listing:', error);
+                alert(`Failed to create direct listing: ${error.message}`);
+            }
         }
     };
 
@@ -100,7 +144,13 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                 currency: listingData.currency,
                 image_url: listingData.image_url,
                 escrow_type: listingData.escrow_type,
-                listing_duration_days: listingData.listing_duration_days
+                listing_duration_days: listingData.listing_duration_days,
+                // API approval fields
+                api_approval_method: listingData.api_approval_method,
+                tweet_username: listingData.tweet_username,
+                crosschain_rpc_url: listingData.crosschain_rpc_url,
+                crosschain_nft_contract: listingData.crosschain_nft_contract,
+                crosschain_token_id: listingData.crosschain_token_id
             });
 
             console.log('Transaction built:', txData);
@@ -390,17 +440,179 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                     </div>
 
                     {formData.payment_method === 'escrow' && (
-                        <div className="form-field-group">
-                            <label className="form-label">Escrow Type</label>
-                            <select name="escrow_type" value={formData.escrow_type} onChange={handleChange}>
-                                <option value="disputable">Disputable</option>
-                                <option value="api_approval">API Approval</option>
-                                <option value="onchain_approval">On-chain Approval</option>
-                            </select>
-                            <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
-                                Choose the type of escrow mechanism for this listing
-                            </small>
-                        </div>
+                        <>
+                            <div className="form-field-group">
+                                <label className="form-label">Escrow Type</label>
+                                <select name="escrow_type" value={formData.escrow_type} onChange={handleChange}>
+                                    <option value="disputable">Disputable</option>
+                                    <option value="api_approval">API Approval</option>
+                                    <option value="onchain_approval">On-chain Approval</option>
+                                </select>
+                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                    Choose the type of escrow mechanism for this listing
+                                </small>
+                            </div>
+
+                            {formData.escrow_type === 'api_approval' && (
+                                <>
+                                    <div className="form-field-group">
+                                        <label className="form-label">API Approval Method</label>
+                                        <select name="api_approval_method" value={formData.api_approval_method} onChange={handleChange}>
+                                            <option value="tweet_repost">Twitter Repost Verification</option>
+                                            <option value="crosschain_nft">Cross-chain NFT Ownership</option>
+                                        </select>
+                                        <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                            Select the API verification method
+                                        </small>
+                                    </div>
+
+                                    {formData.api_approval_method === 'tweet_repost' && (
+                                        <div className="form-field-group">
+                                            <label className="form-label">Your Twitter Username (Seller)</label>
+                                            <input
+                                                type="text"
+                                                name="tweet_username"
+                                                placeholder="e.g., @username"
+                                                value={formData.tweet_username}
+                                                onChange={handleChange}
+                                                required
+                                            />
+                                            <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                Your Twitter username. Buyer will provide the tweet ID to repost after purchase.
+                                            </small>
+                                        </div>
+                                    )}
+
+                                    {formData.api_approval_method === 'crosschain_nft' && (
+                                        <>
+                                            <div className="form-field-group">
+                                                <label className="form-label">RPC URL</label>
+                                                <input
+                                                    type="text"
+                                                    name="crosschain_rpc_url"
+                                                    placeholder="e.g., https://eth.llamarpc.com"
+                                                    value={formData.crosschain_rpc_url}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The RPC endpoint for the NFT's blockchain
+                                                </small>
+                                            </div>
+                                            <div className="form-field-group">
+                                                <label className="form-label">NFT Contract Address</label>
+                                                <input
+                                                    type="text"
+                                                    name="crosschain_nft_contract"
+                                                    placeholder="0x..."
+                                                    value={formData.crosschain_nft_contract}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The NFT contract address to verify ownership
+                                                </small>
+                                            </div>
+                                            <div className="form-field-group">
+                                                <label className="form-label">Token ID</label>
+                                                <input
+                                                    type="text"
+                                                    name="crosschain_token_id"
+                                                    placeholder="e.g., 1234"
+                                                    value={formData.crosschain_token_id}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The specific NFT token ID to verify
+                                                </small>
+                                            </div>
+                                        </>
+                                    )}
+                                </>
+                            )}
+
+                            {formData.escrow_type === 'onchain_approval' && (
+                                <>
+                                    <div className="form-field-group">
+                                        <label className="form-label">On-chain Approval Method</label>
+                                        <select name="onchain_approval_method" value={formData.onchain_approval_method} onChange={handleChange}>
+                                            <option value="NFT">NFT Ownership</option>
+                                            <option value="Contract_Ownership">Contract Ownership</option>
+                                        </select>
+                                        <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                            Select the verification method for on-chain approval
+                                        </small>
+                                    </div>
+
+                                    {formData.onchain_approval_method === 'NFT' && (
+                                        <>
+                                            <div className="form-field-group">
+                                                <label className="form-label">NFT Contract Address</label>
+                                                <input
+                                                    type="text"
+                                                    name="nft_contract_address"
+                                                    placeholder="0x..."
+                                                    value={formData.nft_contract_address}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The NFT contract address to verify ownership
+                                                </small>
+                                            </div>
+                                            <div className="form-field-group">
+                                                <label className="form-label">NFT Token ID</label>
+                                                <input
+                                                    type="text"
+                                                    name="nft_token_id"
+                                                    placeholder="e.g., 1234"
+                                                    value={formData.nft_token_id}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The specific token ID the buyer must own
+                                                </small>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {formData.onchain_approval_method === 'Contract_Ownership' && (
+                                        <>
+                                            <div className="form-field-group">
+                                                <label className="form-label">Contract Address</label>
+                                                <input
+                                                    type="text"
+                                                    name="contract_address"
+                                                    placeholder="0x..."
+                                                    value={formData.contract_address}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The contract address to verify ownership
+                                                </small>
+                                            </div>
+                                            <div className="form-field-group">
+                                                <label className="form-label">Method Signature</label>
+                                                <input
+                                                    type="text"
+                                                    name="contract_method"
+                                                    placeholder="e.g., owner() or ownerOf(uint256)"
+                                                    value={formData.contract_method}
+                                                    onChange={handleChange}
+                                                    required
+                                                />
+                                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                                    The method to call for verification (e.g., "owner()", "isOwner(address,uint)")
+                                                </small>
+                                            </div>
+                                        </>
+                                    )}
+                                </>
+                            )}
+                        </>
                     )}
 
                     {formData.payment_method === 'direct' && (

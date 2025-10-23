@@ -188,7 +188,7 @@ class PrivyAuthView(APIView):
 
 class ListingsView(generics.ListCreateAPIView):
     """List all listings or create new listing"""
-    queryset = Listing.objects.filter(is_deleted=False, status__in=['open', 'filled', 'delivered', 'disputed'])
+    queryset = Listing.objects.filter(is_deleted=False).exclude(status='inactive')
     serializer_class = ListingSerializer
     filterset_class = ListingFilter
     search_fields = ['title', 'description']
@@ -432,6 +432,11 @@ class CreateListingTransactionView(generics.GenericAPIView):
             payment_method='escrow',
             escrow_type=data['escrow_type'],
             listing_duration_days=data['listing_duration_days'],
+            api_approval_method=data.get('api_approval_method'),
+            tweet_username=data.get('tweet_username'),
+            crosschain_rpc_url=data.get('crosschain_rpc_url'),
+            crosschain_nft_contract=data.get('crosschain_nft_contract'),
+            crosschain_token_id=data.get('crosschain_token_id'),
             status='inactive',  # Inactive until blockchain confirmation
             blockchain_listing_id=listing_id,
             blockchain_status='pending_tx',
@@ -650,13 +655,27 @@ class PurchaseListingTransactionView(generics.GenericAPIView):
             deadline=datetime.fromtimestamp(deadline_timestamp)
         )
 
+        # Build extraData based on escrow type
+        extra_data = b''
+        if listing.escrow_type == 'api_approval':
+            from .blockchain.transaction_builder import encode_api_approval_extra_data
+            extra_data = encode_api_approval_extra_data(
+                api_approval_method=listing.api_approval_method,
+                tweet_id=data.get('tweet_id'),
+                tweet_username=listing.tweet_username,
+                crosschain_rpc_url=listing.crosschain_rpc_url,
+                crosschain_nft_contract=listing.crosschain_nft_contract,
+                crosschain_token_id=listing.crosschain_token_id,
+                buyer_address=buyer_wallet
+            )
+
         # Build fillListing transaction
         try:
             transaction = transaction_builder.build_fill_listing_transaction(
                 listing_id=listing.blockchain_listing_id,
                 deadline_timestamp=deadline_timestamp,
                 from_address=buyer_wallet,
-                extra_data=b''  # Empty for disputable listings
+                extra_data=extra_data
             )
 
             return Response({
@@ -783,12 +802,29 @@ class DeliverListingTransactionView(generics.GenericAPIView):
                 'error': f'Cannot deliver order in status: {order.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Build delivery transaction
+        # Build delivery transaction based on escrow type
         try:
-            transaction = transaction_builder.build_deliver_disputable_transaction(
-                listing_id=order.listing.blockchain_listing_id,
-                from_address=seller_wallet
-            )
+            escrow_type = order.listing.escrow_type
+
+            if escrow_type == 'disputable':
+                transaction = transaction_builder.build_deliver_disputable_transaction(
+                    listing_id=order.listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            elif escrow_type == 'onchain_approval':
+                transaction = transaction_builder.build_deliver_onchain_approval_transaction(
+                    listing_id=order.listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            elif escrow_type == 'api_approval':
+                transaction = transaction_builder.build_deliver_api_approval_transaction(
+                    listing_id=order.listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            else:
+                return Response({
+                    'error': f'Unknown escrow type: {escrow_type}'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             return Response({
                 'success': True,
@@ -868,12 +904,29 @@ class DeliverListingTransactionByListingView(generics.GenericAPIView):
                 'error': f'Cannot deliver listing in status: {listing.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Build delivery transaction
+        # Build delivery transaction based on escrow type
         try:
-            transaction = transaction_builder.build_deliver_disputable_transaction(
-                listing_id=listing.blockchain_listing_id,
-                from_address=seller_wallet
-            )
+            escrow_type = listing.escrow_type
+
+            if escrow_type == 'disputable':
+                transaction = transaction_builder.build_deliver_disputable_transaction(
+                    listing_id=listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            elif escrow_type == 'onchain_approval':
+                transaction = transaction_builder.build_deliver_onchain_approval_transaction(
+                    listing_id=listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            elif escrow_type == 'api_approval':
+                transaction = transaction_builder.build_deliver_api_approval_transaction(
+                    listing_id=listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            else:
+                return Response({
+                    'error': f'Unknown escrow type: {escrow_type}'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             return Response({
                 'success': True,

@@ -6,6 +6,7 @@ Uses dynamic ABI loading from Arbiscan via ContractService
 
 import time
 import hashlib
+import os
 from web3 import Web3
 from .config import (
     get_network_config,
@@ -14,9 +15,63 @@ from .config import (
     ESCROW_ABI,
     ERC20_ABI,
     ESCROW_TYPES,
-    DEFAULT_NETWORK
+    DEFAULT_NETWORK,
+    CHAINLINK_SUBSCRIPTION_ID, CHAINLINK_GAS_LIMIT, CHAINLINK_DON_ID,
+    CHAINLINK_DON_HOSTED_SECRETS_SLOT_ID, CHAINLINK_DON_HOSTED_SECRETS_VERSION,
+    CHAINLINK_ENCRYPTED_SECRETS_URLS,
+    CHAINLINK_TWEET_REPOST_SOURCE, CHAINLINK_CROSSCHAIN_NFT_SOURCE
 )
 from .contract_service import ContractService
+
+
+def encode_api_approval_extra_data(api_approval_method, tweet_id=None, tweet_username=None, crosschain_rpc_url=None, crosschain_nft_contract=None, crosschain_token_id=None, buyer_address=None):
+    """
+    Encode ApiApprovalData struct as extraData for fillListing
+
+    struct ApiApprovalData {
+        string source;
+        bytes encryptedSecretsUrls;
+        string[] args;
+        bytes[] bytesArgs;
+        bytes32 requestId;
+    }
+    """
+    # Load source code based on method
+    if api_approval_method == 'tweet_repost':
+        js_source = CHAINLINK_TWEET_REPOST_SOURCE
+        args = [tweet_id, tweet_username.replace('@', '').strip()]
+        bytes_args = []
+    elif api_approval_method == 'crosschain_nft':
+        js_source = CHAINLINK_CROSSCHAIN_NFT_SOURCE
+        args = [crosschain_rpc_url, crosschain_nft_contract, crosschain_token_id, buyer_address]
+        bytes_args = []
+    else:
+        raise ValueError(f"Unknown API approval method: {api_approval_method}")
+
+    # Ensure encrypted secrets URL starts with 0x
+    encrypted_secrets_urls = CHAINLINK_ENCRYPTED_SECRETS_URLS
+    if not encrypted_secrets_urls.startswith('0x'):
+        encrypted_secrets_urls = f'0x{encrypted_secrets_urls}'
+
+    # Encode ApiApprovalData struct
+    api_approval_data = (
+        js_source,
+        bytes.fromhex(encrypted_secrets_urls[2:]),
+        args,
+        bytes_args,
+        b'\x00' * 32  # requestId = bytes32(0)
+    )
+
+    # Encode as tuple
+    encoded = Web3.solidity_keccak(['string'], [''])  # Placeholder, will use proper encoding
+    # Proper encoding using eth_abi
+    from eth_abi import encode
+    encoded = encode(
+        ['(string,bytes,string[],bytes[],bytes32)'],
+        [api_approval_data]
+    )
+
+    return encoded
 
 
 class TransactionBuilder:
@@ -293,9 +348,9 @@ class TransactionBuilder:
                 gas_estimate = contract_function.estimate_gas({'from': from_address})
                 transaction['gas'] = hex(int(gas_estimate * 1.2))
             except Exception as e:
-                transaction['gas'] = hex(250000)
+                transaction['gas'] = hex(2000000)
         else:
-            transaction['gas'] = hex(250000)
+            transaction['gas'] = hex(2000000)
 
         return transaction
 
@@ -339,6 +394,99 @@ class TransactionBuilder:
                 transaction['gas'] = hex(150000)
         else:
             transaction['gas'] = hex(150000)
+
+        return transaction
+
+    def build_deliver_onchain_approval_transaction(
+        self,
+        listing_id,
+        from_address=None
+    ):
+        """
+        Build unsigned transaction for deliverOnchainApprovalListing (anyone can call)
+
+        Args:
+            listing_id (str): Listing ID (bytes32 hex string)
+            from_address (str): Caller's wallet address
+
+        Returns:
+            dict: Unsigned transaction data
+        """
+        # Build contract function call
+        contract_function = self.escrow_contract.functions.deliverOnchainApprovalListing(
+            listing_id
+        )
+
+        # Build transaction
+        transaction = {
+            'to': self.escrow_address,
+            'value': 0,
+            'chainId': self.network_config['chain_id'],
+            'data': contract_function._encode_transaction_data(),
+        }
+
+        # Add from address if provided
+        if from_address:
+            transaction['from'] = from_address
+
+            # Estimate gas
+            try:
+                gas_estimate = contract_function.estimate_gas({'from': from_address})
+                transaction['gas'] = hex(int(gas_estimate * 1.2))
+            except Exception as e:
+                transaction['gas'] = hex(200000)
+        else:
+            transaction['gas'] = hex(200000)
+
+        return transaction
+
+    def build_deliver_api_approval_transaction(
+        self,
+        listing_id,
+        from_address=None
+    ):
+        """
+        Build unsigned transaction for deliverApiApprovalListing (seller calls after fulfilling)
+
+        Args:
+            listing_id (str): Listing ID (bytes32 hex string)
+            from_address (str): Seller's wallet address
+
+        Returns:
+            dict: Unsigned transaction data
+        """
+        # Build contract function call with Chainlink params
+        contract_function = self.escrow_contract.functions.deliverApiApprovalListing(
+            listing_id,
+            [],  # _sellerArgs (empty, args already in extraData)
+            [],  # _sellerBytesArgs (empty)
+            CHAINLINK_DON_HOSTED_SECRETS_SLOT_ID,
+            CHAINLINK_DON_HOSTED_SECRETS_VERSION,
+            CHAINLINK_SUBSCRIPTION_ID,
+            CHAINLINK_GAS_LIMIT,
+            CHAINLINK_DON_ID
+        )
+
+        # Build transaction
+        transaction = {
+            'to': self.escrow_address,
+            'value': 0,
+            'chainId': self.network_config['chain_id'],
+            'data': contract_function._encode_transaction_data(),
+        }
+
+        # Add from address if provided
+        if from_address:
+            transaction['from'] = from_address
+
+            # Estimate gas
+            try:
+                gas_estimate = contract_function.estimate_gas({'from': from_address})
+                transaction['gas'] = hex(int(gas_estimate * 1.5))  # Higher gas for Chainlink
+            except Exception as e:
+                transaction['gas'] = hex(500000)  # Higher default for Chainlink
+        else:
+            transaction['gas'] = hex(500000)
 
         return transaction
 
@@ -467,6 +615,72 @@ class TransactionBuilder:
             # Default fallback (0.001 ETH)
             return int(0.001 * 10**18)
 
+    def create_extra_data_onchain_approval(self, destination, data, expected_result):
+        """
+        Create extra data for onchain approval
+
+        Args:
+            destination (address): Destination address
+            data (bytes): Data
+            expected_result (bytes): Expected result
+
+        Returns:
+            bytes: Extra data
+        """
+        return self.w3.eth.abi.encode_abi(['address', 'bytes', 'bytes'], [destination, data, expected_result])
+
+    def create_extra_data_api_approval(self, source, encrypted_secrets_urls, args, bytes_args):
+        """
+        Create extra data for api approval
+
+        Args:
+            source (str): Source code
+            encrypted_secrets_urls (bytes): Encrypted secrets URLs
+            args (string[]): Arguments
+            bytes_args (bytes[]): Bytes arguments
+
+        """
+        request_id = Web3.to_bytes(hexstr='0x' + '00' * 32)
+        return self.w3.eth.abi.encode_abi(['string', 'bytes', 'string[]', 'bytes[]', 'bytes32'], [source, encrypted_secrets_urls, args, bytes_args, request_id])
+
+    def script_flattener(self, script_path):
+        """
+        Flatten the script
+
+        Args:
+            script_path (str): Absolute path to a Chainlink Functions .js script
+
+        Returns:
+            str: Flattened script
+        """
+        # TODO: I wrote this one, assuming we will save functions in an static folder and load them from there
+        # Please check if this approach is correct. If not, please rewrite that part. We can also save the scripts in the flatended form in the database.
+        # also I didnt test the python implementation of this function, it needs to be tested.
+        # One last thing, I didnt know where else to put this function, so I put it here. Please move it to the correct place.
+
+        if not isinstance(script_path, str):
+            raise TypeError("script must be an absolute file path string")
+        script_path = script
+        if not os.path.isabs(script_path):
+            raise ValueError("Expected an absolute file path for Chainlink Functions script")
+        if not os.path.exists(script_path):
+            raise FileNotFoundError(f"Chainlink Functions script not found: {script_path}")
+
+        with open(script_path, 'r', encoding='utf-8') as f:
+            script = f.read()
+
+        # Normalize content
+        if isinstance(script, bytes):
+            script = script.decode('utf-8', errors='ignore')
+        # Strip UTF-8 BOM if present and normalize newlines
+        script = script.replace('\r\n', '\n').replace('\r', '\n')
+        if script.startswith('\ufeff'):
+            script = script.lstrip('\ufeff')
+
+        # Optionally trim trailing spaces on each line
+        script = '\n'.join(line.rstrip() for line in script.split('\n'))
+
+        return script
 
 # Create singleton instance
 transaction_builder = TransactionBuilder()

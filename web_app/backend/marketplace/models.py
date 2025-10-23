@@ -79,6 +79,13 @@ class Listing(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
     is_deleted = models.BooleanField(default=False, help_text="Soft delete flag")
 
+    # API Approval fields
+    api_approval_method = models.CharField(max_length=50, blank=True, null=True, help_text="API approval method: tweet_repost, crosschain_nft")
+    tweet_username = models.CharField(max_length=100, blank=True, null=True, help_text="Twitter username for repost verification")
+    crosschain_rpc_url = models.CharField(max_length=200, blank=True, null=True, help_text="RPC URL for crosschain NFT verification")
+    crosschain_nft_contract = models.CharField(max_length=42, blank=True, null=True, help_text="NFT contract address for crosschain verification")
+    crosschain_token_id = models.CharField(max_length=100, blank=True, null=True, help_text="Token ID for crosschain NFT verification")
+
     # Blockchain-related fields
     blockchain_listing_id = models.CharField(max_length=66, blank=True, null=True, unique=True, help_text="bytes32 listing ID on blockchain (0x...)")
     blockchain_status = models.CharField(max_length=20, blank=True, null=True, help_text="pending_tx, confirmed, failed")

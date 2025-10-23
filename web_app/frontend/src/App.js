@@ -163,10 +163,16 @@ function App() {
     };
 
     const handleWatchClick = (product) => {
+        // Close any open modals before showing product detail
+        setShowMyProducts(false);
+        setShowMyPurchases(false);
         setSelectedProduct(product);
     };
 
     const handleBuyClick = (product) => {
+        // Close any open modals before showing product detail
+        setShowMyProducts(false);
+        setShowMyPurchases(false);
         setSelectedProduct(product);
     };
 

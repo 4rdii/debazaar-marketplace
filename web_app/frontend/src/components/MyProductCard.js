@@ -78,6 +78,25 @@ const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
                     <span className="payment-method">💳 {product.payment_method === 'escrow' ? 'Using escrow' : 'Direct'}</span>
                     {product.is_expired && <span className="expired-badge">⏰ Expired</span>}
                 </div>
+                {product.buyer_address && product.status === 'filled' && (
+                    <div style={{
+                        backgroundColor: '#e3f2fd',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        marginTop: '8px',
+                        fontSize: '12px'
+                    }}>
+                        <strong>👤 Buyer Address:</strong>
+                        <div style={{
+                            fontFamily: 'monospace',
+                            fontSize: '11px',
+                            wordBreak: 'break-all',
+                            marginTop: '4px'
+                        }}>
+                            {product.buyer_address}
+                        </div>
+                    </div>
+                )}
                 <div className="product-actions">
                     <button className="view-btn" onClick={() => onWatchClick(product)}>View</button>
                     {product.status === 'filled' && (

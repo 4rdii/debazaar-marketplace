@@ -9,14 +9,24 @@ const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
     const [showContact, setShowContact] = useState(false);
     const [isPurchasing, setIsPurchasing] = useState(false);
     const [purchaseStatus, setPurchaseStatus] = useState('');
+    const [tweetId, setTweetId] = useState('');
 
     if (!product) return null;
+
+    // Check if this is a tweet repost product
+    const isTweetRepostProduct = product.escrow_type === 'api_approval' && product.api_approval_method === 'tweet_repost';
 
     const handlePurchase = async () => {
         // Check authentication
         const auth = getStoredAuth();
         if (!auth || !auth.walletAddress) {
             alert('Please connect your wallet first!');
+            return;
+        }
+
+        // For tweet repost products, validate tweet ID
+        if (isTweetRepostProduct && !tweetId.trim()) {
+            alert('Please enter the Tweet ID you want to be reposted');
             return;
         }
 
@@ -73,7 +83,8 @@ const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
             const purchaseData = await api.purchaseListingTransaction(
                 product.id,
                 auth.walletAddress,
-                7 // 7 days deadline
+                7, // 7 days deadline
+                tweetId // Pass tweet ID for API approval
             );
             console.log('Purchase transaction built:', purchaseData);
 
@@ -257,6 +268,45 @@ const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
                                 </button>
                             ) : (
                                 <>
+                                    {isTweetRepostProduct && (
+                                        <div style={{
+                                            marginBottom: '16px',
+                                            padding: '16px',
+                                            backgroundColor: '#f0f8ff',
+                                            borderRadius: '8px',
+                                            border: '1px solid #cce5ff'
+                                        }}>
+                                            <label style={{
+                                                display: 'block',
+                                                fontWeight: 'bold',
+                                                marginBottom: '8px',
+                                                color: '#333'
+                                            }}>
+                                                🐦 Tweet ID to be Reposted
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g., 1234567890123456789"
+                                                value={tweetId}
+                                                onChange={(e) => setTweetId(e.target.value)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '10px',
+                                                    border: '1px solid #ccc',
+                                                    borderRadius: '4px',
+                                                    fontSize: '14px'
+                                                }}
+                                            />
+                                            <small style={{
+                                                display: 'block',
+                                                marginTop: '6px',
+                                                color: '#666',
+                                                fontSize: '12px'
+                                            }}>
+                                                Seller <strong>@{product.tweet_username || 'seller'}</strong> will repost your tweet
+                                            </small>
+                                        </div>
+                                    )}
                                     <button
                                         className="buy-button-large"
                                         onClick={handlePurchase}

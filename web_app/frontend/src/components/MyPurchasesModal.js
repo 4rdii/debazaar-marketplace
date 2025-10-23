@@ -176,7 +176,7 @@ const MyPurchasesModal = ({ onClose, authUser, onProductClick }) => {
                         </div>
                         <div className="product-actions">
                             <button className="view-btn" onClick={() => onProductClick(purchase)}>View</button>
-                            {purchase.status === 'delivered' && (
+                            {purchase.status === 'delivered' && purchase.escrow_type === 'disputable' && (
                                 <>
                                     <button
                                         className="deliver-btn"
