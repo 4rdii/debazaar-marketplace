@@ -343,6 +343,49 @@ class TransactionBuilder:
 
         return transaction
 
+    def build_deliver_onchain_approval_transaction(
+        self,
+        listing_id,
+        from_address=None
+    ):
+        """
+        Build unsigned transaction for deliverOnchainApprovalListing (anyone can call)
+
+        Args:
+            listing_id (str): Listing ID (bytes32 hex string)
+            from_address (str): Caller's wallet address
+
+        Returns:
+            dict: Unsigned transaction data
+        """
+        # Build contract function call
+        contract_function = self.escrow_contract.functions.deliverOnchainApprovalListing(
+            listing_id
+        )
+
+        # Build transaction
+        transaction = {
+            'to': self.escrow_address,
+            'value': 0,
+            'chainId': self.network_config['chain_id'],
+            'data': contract_function._encode_transaction_data(),
+        }
+
+        # Add from address if provided
+        if from_address:
+            transaction['from'] = from_address
+
+            # Estimate gas
+            try:
+                gas_estimate = contract_function.estimate_gas({'from': from_address})
+                transaction['gas'] = hex(int(gas_estimate * 1.2))
+            except Exception as e:
+                transaction['gas'] = hex(200000)
+        else:
+            transaction['gas'] = hex(200000)
+
+        return transaction
+
     def build_resolve_listing_transaction(
         self,
         listing_id,

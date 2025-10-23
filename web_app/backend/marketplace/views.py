@@ -783,12 +783,28 @@ class DeliverListingTransactionView(generics.GenericAPIView):
                 'error': f'Cannot deliver order in status: {order.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Build delivery transaction
+        # Build delivery transaction based on escrow type
         try:
-            transaction = transaction_builder.build_deliver_disputable_transaction(
-                listing_id=order.listing.blockchain_listing_id,
-                from_address=seller_wallet
-            )
+            escrow_type = order.listing.escrow_type
+
+            if escrow_type == 'disputable':
+                transaction = transaction_builder.build_deliver_disputable_transaction(
+                    listing_id=order.listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            elif escrow_type == 'onchain_approval':
+                transaction = transaction_builder.build_deliver_onchain_approval_transaction(
+                    listing_id=order.listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            elif escrow_type == 'api_approval':
+                return Response({
+                    'error': 'API approval delivery not yet implemented'
+                }, status=status.HTTP_501_NOT_IMPLEMENTED)
+            else:
+                return Response({
+                    'error': f'Unknown escrow type: {escrow_type}'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             return Response({
                 'success': True,
@@ -868,12 +884,28 @@ class DeliverListingTransactionByListingView(generics.GenericAPIView):
                 'error': f'Cannot deliver listing in status: {listing.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Build delivery transaction
+        # Build delivery transaction based on escrow type
         try:
-            transaction = transaction_builder.build_deliver_disputable_transaction(
-                listing_id=listing.blockchain_listing_id,
-                from_address=seller_wallet
-            )
+            escrow_type = listing.escrow_type
+
+            if escrow_type == 'disputable':
+                transaction = transaction_builder.build_deliver_disputable_transaction(
+                    listing_id=listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            elif escrow_type == 'onchain_approval':
+                transaction = transaction_builder.build_deliver_onchain_approval_transaction(
+                    listing_id=listing.blockchain_listing_id,
+                    from_address=seller_wallet
+                )
+            elif escrow_type == 'api_approval':
+                return Response({
+                    'error': 'API approval delivery not yet implemented'
+                }, status=status.HTTP_501_NOT_IMPLEMENTED)
+            else:
+                return Response({
+                    'error': f'Unknown escrow type: {escrow_type}'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             return Response({
                 'success': True,
