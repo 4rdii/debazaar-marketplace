@@ -146,17 +146,23 @@ export const api = {
      * @param {number} listingId - Listing ID
      * @param {string} buyerWallet - Buyer wallet address
      * @param {number} deadlineDays - Deadline in days
+     * @param {string} tweetId - Tweet ID for API approval (optional)
      * @returns {Promise<{success: boolean, transaction: Object, order_id: number}>}
      */
-    purchaseListingTransaction: async (listingId, buyerWallet, deadlineDays = 7) => {
+    purchaseListingTransaction: async (listingId, buyerWallet, deadlineDays = 7, tweetId = null) => {
+        const body = {
+            listing_id: listingId,
+            buyer_wallet: buyerWallet,
+            deadline_days: deadlineDays
+        };
+        if (tweetId) {
+            body.tweet_id = tweetId;
+        }
+
         const response = await fetch(`${API_BASE}/orders/purchase-transaction/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                listing_id: listingId,
-                buyer_wallet: buyerWallet,
-                deadline_days: deadlineDays
-            })
+            body: JSON.stringify(body)
         });
         if (!response.ok) {
             const errorData = await response.json();

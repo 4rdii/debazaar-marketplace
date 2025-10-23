@@ -83,7 +83,8 @@ const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
             const purchaseData = await api.purchaseListingTransaction(
                 product.id,
                 auth.walletAddress,
-                7 // 7 days deadline
+                7, // 7 days deadline
+                tweetId // Pass tweet ID for API approval
             );
             console.log('Purchase transaction built:', purchaseData);
 

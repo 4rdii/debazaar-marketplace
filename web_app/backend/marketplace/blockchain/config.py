@@ -27,6 +27,166 @@ NETWORKS = {
 # Default network for development (can be overridden by environment variable)
 DEFAULT_NETWORK = os.environ.get('BLOCKCHAIN_NETWORK', 'arbitrum_sepolia')
 
+# Chainlink Functions configuration
+CHAINLINK_SUBSCRIPTION_ID = int(os.environ.get('CHAINLINK_FUNCTIONS_SUBSCRIPTION_ID', '518'))
+CHAINLINK_GAS_LIMIT = 300000
+CHAINLINK_DON_ID = os.environ.get('CHAINLINK_DON_ID_ARB_SEPOLIA', '0x66756e2d617262697472756d2d7365706f6c69612d3100000000000000000000')
+CHAINLINK_DON_HOSTED_SECRETS_SLOT_ID = int(os.environ.get('DON_HOSTED_SECRETS_SLOT_ID', '0'))
+CHAINLINK_DON_HOSTED_SECRETS_VERSION = int(os.environ.get('DON_HOSTED_SECRETS_VERSION', '0'))
+CHAINLINK_ENCRYPTED_SECRETS_URLS = os.environ.get('ENCRYPTED_SECRETS_URLS', '0xc63fd846b3aeb4f3be5a7bc7ff55b94c029880e6e04515eb4d225c86b9835d7a4a4bedf9c572d1739f9aabfb35d3b3702fc385397e8eec0e5211bda66c7f6afc8bac446a7f018cc60c2f0f7a30808541876f3f27d25b686fabb6b14971d76f4337baa86f1306ecc179c5a07d9beff107b382b5eeb05715470eff38fc6c11cd36aae16d7ef7a1e53807221cc062bad0b2e9e32cc268fd6e9a3c69874078cd6f5f6b')
+
+# Chainlink Functions JavaScript source code
+CHAINLINK_TWEET_REPOST_SOURCE = """// Chainlink Functions source script: Check if a user retweeted a tweet
+// Docs: https://docs.twitterapi.io/api-reference/endpoint/get_tweet_retweeters
+// Inputs:
+// - secrets.twitterApiKey: X-API-Key value (required)
+// - args[0] (required): tweetId (string)
+// - args[1] (required): userName to check (string; can include leading @)
+// Output: ABI-encoded uint256 => 1 if userName is in retweeters list, else 0
+
+if (!secrets || typeof secrets.twitterApiKey !== "string" || secrets.twitterApiKey.length === 0) {
+    throw Error("Missing secrets.twitterApiKey");
+  }
+
+  const tweetId = (args && typeof args[0] === "string" && args[0].length > 0) ? args[0] : null;
+  let userName = (args && typeof args[1] === "string") ? args[1] : "";
+  userName = userName.replace(/^@/, "").trim();
+  if (!tweetId) {
+    throw Error("Missing args[0] tweetId");
+  }
+  if (!userName) {
+    throw Error("Missing args[1] userName");
+  }
+
+  const baseUrl = "https://api.twitterapi.io/twitter/tweet/retweeters";
+  const params = new URLSearchParams({ tweetId });
+  const url = `${baseUrl}?${params.toString()}`;
+
+  let resp;
+  try {
+    resp = await Functions.makeHttpRequest({
+      url,
+      method: "GET",
+      timeout: 15000,
+      headers: {
+        "X-API-Key": secrets.twitterApiKey,
+        "accept": "application/json",
+        "user-agent": "chainlink-functions/1.0",
+      },
+    });
+  } catch (_) {
+    return Functions.encodeUint256(0n);
+  }
+
+  if (!resp || resp.error) {
+    return Functions.encodeUint256(0n);
+  }
+
+  let data = resp.data;
+  if (typeof data === "string") {
+    try { data = JSON.parse(data); } catch (_) { return Functions.encodeUint256(0n); }
+  }
+
+  if (!data || !Array.isArray(data.users)) {
+    return Functions.encodeUint256(0n);
+  }
+
+  const target = userName.toLowerCase();
+  const found = data.users.some((u) => typeof u?.userName === "string" && u.userName.replace(/^@/, "").toLowerCase() === target);
+
+  return Functions.encodeUint256(found ? 1n : 0n);
+"""
+
+CHAINLINK_CROSSCHAIN_NFT_SOURCE = """// Chainlink Functions source script
+// Checks ERC-721 ownerOf(tokenId) and returns 1 if it equals expected owner, else 0
+// Args:
+// - args[0]: rpcUrl (e.g., https://eth.llamarpc.com)
+// - args[1]: nft contract address (0x...)
+// - args[2]: tokenId (decimal string or number)
+// - args[3]: expected owner address (0x...)
+
+// Validate inputs
+if (!args || typeof args[0] !== "string" || args[0].length === 0) {
+    throw Error("Missing args[0] rpcUrl");
+  }
+  if (typeof args[1] !== "string" || !args[1].startsWith("0x") || args[1].length !== 42) {
+    throw Error("Invalid args[1] nft contract address");
+  }
+  if (args[2] === undefined || args[2] === null || (typeof args[2] !== "string" && typeof args[2] !== "number")) {
+    throw Error("Invalid args[2] tokenId");
+  }
+  if (typeof args[3] !== "string" || !args[3].startsWith("0x") || args[3].length !== 42) {
+    throw Error("Invalid args[3] expected owner address");
+  }
+
+  const rpcUrl = args[0];
+  const nft = args[1];
+  const tokenIdBig = BigInt(args[2].toString());
+  const expected = args[3].toLowerCase();
+
+  // ownerOf(uint256) selector = bytes4(keccak256("ownerOf(uint256)")) = 0x6352211e
+  const selector = "6352211e";
+
+  // 32-byte left-padded tokenId hex
+  let tokenHex = tokenIdBig.toString(16);
+  if (tokenHex.length > 64) {
+    throw Error("tokenId too large");
+  }
+  tokenHex = tokenHex.padStart(64, "0");
+  const data = `0x${selector}${tokenHex}`;
+
+  const payload = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "eth_call",
+    params: [
+      {
+        to: nft,
+        data,
+      },
+      "latest",
+    ],
+  };
+
+  let resp;
+  try {
+    resp = await Functions.makeHttpRequest({
+      url: rpcUrl,
+      method: "POST",
+      timeout: 12000,
+      headers: { "content-type": "application/json" },
+      data: payload,
+    });
+  } catch (e) {
+    throw Error(`RPC request failed: ${e}`);
+  }
+
+  if (!resp) {
+    throw Error("No response from RPC endpoint");
+  }
+  if (resp.error) {
+    throw Error(`RPC HTTP error: ${resp.error}`);
+  }
+
+  const result = resp.data?.result;
+  if (!result || typeof result !== "string" || !result.startsWith("0x")) {
+    const rpcError = resp.data?.error?.message || "Malformed eth_call response";
+    throw Error(`eth_call error: ${rpcError}`);
+  }
+
+  // ABI-decoded address is right-most 20 bytes of 32-byte word
+  // result is hex string like 0x000...000<40-hex-addr>
+  const clean = result.slice(2);
+  if (clean.length < 64) {
+    throw Error("eth_call returned short data");
+  }
+  const ownerHex = clean.slice(-40);
+  const ownerAddr = ("0x" + ownerHex).toLowerCase();
+
+  const isMatch = ownerAddr === expected;
+  return Functions.encodeUint256(isMatch ? 1n : 0n);
+"""
+
 # Arbiscan API key (optional, for fetching ABIs dynamically)
 # Set this in your .env file: ARBISCAN_API_KEY=your_api_key_here
 # Without API key, rate limits apply (5 requests/second)

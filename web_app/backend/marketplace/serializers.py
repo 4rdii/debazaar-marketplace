@@ -266,6 +266,7 @@ class PurchaseListingTransactionSerializer(serializers.Serializer):
     buyer_wallet = serializers.CharField(max_length=42, required=True)
     listing_id = serializers.IntegerField(required=True)
     deadline_days = serializers.IntegerField(min_value=1, max_value=365, default=7)
+    tweet_id = serializers.CharField(max_length=100, required=False, allow_blank=True, allow_null=True)
 
     def validate_buyer_wallet(self, value):
         """Validate wallet address format"""

@@ -15,9 +15,63 @@ from .config import (
     ESCROW_ABI,
     ERC20_ABI,
     ESCROW_TYPES,
-    DEFAULT_NETWORK
+    DEFAULT_NETWORK,
+    CHAINLINK_SUBSCRIPTION_ID, CHAINLINK_GAS_LIMIT, CHAINLINK_DON_ID,
+    CHAINLINK_DON_HOSTED_SECRETS_SLOT_ID, CHAINLINK_DON_HOSTED_SECRETS_VERSION,
+    CHAINLINK_ENCRYPTED_SECRETS_URLS,
+    CHAINLINK_TWEET_REPOST_SOURCE, CHAINLINK_CROSSCHAIN_NFT_SOURCE
 )
 from .contract_service import ContractService
+
+
+def encode_api_approval_extra_data(api_approval_method, tweet_id=None, tweet_username=None, crosschain_rpc_url=None, crosschain_nft_contract=None, crosschain_token_id=None, buyer_address=None):
+    """
+    Encode ApiApprovalData struct as extraData for fillListing
+
+    struct ApiApprovalData {
+        string source;
+        bytes encryptedSecretsUrls;
+        string[] args;
+        bytes[] bytesArgs;
+        bytes32 requestId;
+    }
+    """
+    # Load source code based on method
+    if api_approval_method == 'tweet_repost':
+        js_source = CHAINLINK_TWEET_REPOST_SOURCE
+        args = [tweet_id, tweet_username.replace('@', '').strip()]
+        bytes_args = []
+    elif api_approval_method == 'crosschain_nft':
+        js_source = CHAINLINK_CROSSCHAIN_NFT_SOURCE
+        args = [crosschain_rpc_url, crosschain_nft_contract, crosschain_token_id, buyer_address]
+        bytes_args = []
+    else:
+        raise ValueError(f"Unknown API approval method: {api_approval_method}")
+
+    # Ensure encrypted secrets URL starts with 0x
+    encrypted_secrets_urls = CHAINLINK_ENCRYPTED_SECRETS_URLS
+    if not encrypted_secrets_urls.startswith('0x'):
+        encrypted_secrets_urls = f'0x{encrypted_secrets_urls}'
+
+    # Encode ApiApprovalData struct
+    api_approval_data = (
+        js_source,
+        bytes.fromhex(encrypted_secrets_urls[2:]),
+        args,
+        bytes_args,
+        b'\x00' * 32  # requestId = bytes32(0)
+    )
+
+    # Encode as tuple
+    encoded = Web3.solidity_keccak(['string'], [''])  # Placeholder, will use proper encoding
+    # Proper encoding using eth_abi
+    from eth_abi import encode
+    encoded = encode(
+        ['(string,bytes,string[],bytes[],bytes32)'],
+        [api_approval_data]
+    )
+
+    return encoded
 
 
 class TransactionBuilder:
@@ -294,9 +348,9 @@ class TransactionBuilder:
                 gas_estimate = contract_function.estimate_gas({'from': from_address})
                 transaction['gas'] = hex(int(gas_estimate * 1.2))
             except Exception as e:
-                transaction['gas'] = hex(250000)
+                transaction['gas'] = hex(1000000)
         else:
-            transaction['gas'] = hex(250000)
+            transaction['gas'] = hex(1000000)
 
         return transaction
 
@@ -383,6 +437,56 @@ class TransactionBuilder:
                 transaction['gas'] = hex(200000)
         else:
             transaction['gas'] = hex(200000)
+
+        return transaction
+
+    def build_deliver_api_approval_transaction(
+        self,
+        listing_id,
+        from_address=None
+    ):
+        """
+        Build unsigned transaction for deliverApiApprovalListing (seller calls after fulfilling)
+
+        Args:
+            listing_id (str): Listing ID (bytes32 hex string)
+            from_address (str): Seller's wallet address
+
+        Returns:
+            dict: Unsigned transaction data
+        """
+        # Build contract function call with Chainlink params
+        contract_function = self.escrow_contract.functions.deliverApiApprovalListing(
+            listing_id,
+            [],  # _sellerArgs (empty, args already in extraData)
+            [],  # _sellerBytesArgs (empty)
+            CHAINLINK_DON_HOSTED_SECRETS_SLOT_ID,
+            CHAINLINK_DON_HOSTED_SECRETS_VERSION,
+            CHAINLINK_SUBSCRIPTION_ID,
+            CHAINLINK_GAS_LIMIT,
+            CHAINLINK_DON_ID
+        )
+
+        # Build transaction
+        transaction = {
+            'to': self.escrow_address,
+            'value': 0,
+            'chainId': self.network_config['chain_id'],
+            'data': contract_function._encode_transaction_data(),
+        }
+
+        # Add from address if provided
+        if from_address:
+            transaction['from'] = from_address
+
+            # Estimate gas
+            try:
+                gas_estimate = contract_function.estimate_gas({'from': from_address})
+                transaction['gas'] = hex(int(gas_estimate * 1.5))  # Higher gas for Chainlink
+            except Exception as e:
+                transaction['gas'] = hex(500000)  # Higher default for Chainlink
+        else:
+            transaction['gas'] = hex(500000)
 
         return transaction
 
