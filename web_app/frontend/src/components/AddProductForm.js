@@ -13,6 +13,7 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         image_url: '',
         payment_method: 'escrow',
         escrow_type: 'disputable',
+        onchain_approval_method: 'NFT',
         seller_contact: '',
         listing_duration_days: 30
     });
@@ -390,17 +391,33 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                     </div>
 
                     {formData.payment_method === 'escrow' && (
-                        <div className="form-field-group">
-                            <label className="form-label">Escrow Type</label>
-                            <select name="escrow_type" value={formData.escrow_type} onChange={handleChange}>
-                                <option value="disputable">Disputable</option>
-                                <option value="api_approval">API Approval</option>
-                                <option value="onchain_approval">On-chain Approval</option>
-                            </select>
-                            <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
-                                Choose the type of escrow mechanism for this listing
-                            </small>
-                        </div>
+                        <>
+                            <div className="form-field-group">
+                                <label className="form-label">Escrow Type</label>
+                                <select name="escrow_type" value={formData.escrow_type} onChange={handleChange}>
+                                    <option value="disputable">Disputable</option>
+                                    <option value="api_approval">API Approval</option>
+                                    <option value="onchain_approval">On-chain Approval</option>
+                                </select>
+                                <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                    Choose the type of escrow mechanism for this listing
+                                </small>
+                            </div>
+
+                            {formData.escrow_type === 'onchain_approval' && (
+                                <div className="form-field-group">
+                                    <label className="form-label">On-chain Approval Method</label>
+                                    <select name="onchain_approval_method" value={formData.onchain_approval_method} onChange={handleChange}>
+                                        <option value="NFT">NFT Ownership</option>
+                                        <option value="Contract_Ownership">Contract Ownership</option>
+                                        <option value="ERC20">ERC20 Token Balance</option>
+                                    </select>
+                                    <small style={{color: '#666', fontSize: '12px', display: 'block', marginTop: '4px'}}>
+                                        Select the verification method for on-chain approval
+                                    </small>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {formData.payment_method === 'direct' && (
