@@ -188,7 +188,7 @@ class PrivyAuthView(APIView):
 
 class ListingsView(generics.ListCreateAPIView):
     """List all listings or create new listing"""
-    queryset = Listing.objects.filter(is_deleted=False, status__in=['open', 'filled', 'delivered', 'disputed'])
+    queryset = Listing.objects.filter(is_deleted=False).exclude(status='inactive')
     serializer_class = ListingSerializer
     filterset_class = ListingFilter
     search_fields = ['title', 'description']

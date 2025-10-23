@@ -70,9 +70,42 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         if (finalFormData.payment_method === 'escrow') {
             await handleBlockchainListing(finalFormData, auth.walletAddress);
         } else {
-            // For direct listings, use old flow
-            console.log('Submitting direct listing:', finalFormData);
-            onSubmit(finalFormData);
+            // For direct listings, create directly via API
+            try {
+                console.log('Submitting direct listing:', finalFormData);
+                console.log('Auth object:', auth);
+
+                if (!auth || !auth.authUser || !auth.authUser.user_id) {
+                    alert('User not authenticated. Please connect your wallet first.');
+                    return;
+                }
+
+                const listingData = {
+                    seller_id: auth.authUser.user_id,
+                    title: finalFormData.title,
+                    description: finalFormData.description,
+                    price: parseFloat(finalFormData.price),
+                    currency: finalFormData.currency,
+                    image_url: finalFormData.image_url,
+                    payment_method: finalFormData.payment_method,
+                    seller_contact: finalFormData.seller_contact,
+                    listing_duration_days: parseInt(finalFormData.listing_duration_days),
+                    token_address: '0x0000000000000000000000000000000000000000',
+                    file_path: '',
+                    metadata_cid: '',
+                    image_cid: '',
+                    escrow_type: null
+                };
+
+                console.log('Listing data to send:', listingData);
+                const result = await api.createListing(listingData);
+                console.log('Direct listing created:', result);
+                alert('✅ Direct listing created successfully!');
+                onSubmit(result);
+            } catch (error) {
+                console.error('Error creating direct listing:', error);
+                alert(`Failed to create direct listing: ${error.message}`);
+            }
         }
     };
 

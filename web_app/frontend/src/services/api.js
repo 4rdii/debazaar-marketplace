@@ -36,7 +36,17 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(listingData)
         });
-        if (!response.ok) throw new Error('Failed to create listing');
+        if (!response.ok) {
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                errorData = { error: 'Failed to parse error response' };
+            }
+            console.error('Create listing error:', errorData);
+            const errorMsg = errorData.error || errorData.detail || Object.values(errorData).flat().join(', ') || 'Failed to create listing';
+            throw new Error(errorMsg);
+        }
         return response.json();
     },
 
