@@ -30,6 +30,7 @@ class ListingSerializer(serializers.ModelSerializer):
     is_expired = serializers.ReadOnlyField()
     expires_at = serializers.ReadOnlyField()
     orders = OrderSimpleSerializer(many=True, read_only=True)
+    buyer_address = serializers.SerializerMethodField()
 
     class Meta:
         model = Listing
@@ -37,7 +38,7 @@ class ListingSerializer(serializers.ModelSerializer):
                  'token_address', 'file_path', 'metadata_cid', 'image_url',
                  'image_cid', 'payment_method', 'escrow_type', 'seller_contact',
                  'listing_duration_days',
-                 'status', 'seller_rating', 'is_expired', 'expires_at', 'orders', 'created_at', 'updated_at']
+                 'status', 'seller_rating', 'is_expired', 'expires_at', 'orders', 'buyer_address', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_seller_rating(self, obj):
@@ -45,6 +46,17 @@ class ListingSerializer(serializers.ModelSerializer):
             return float(obj.seller.userprofile.rating)
         except:
             return 0.0
+
+    def get_buyer_address(self, obj):
+        """Get buyer wallet address from the most recent order"""
+        try:
+            # Get the most recent order for this listing
+            order = obj.orders.filter(status__in=['paid', 'delivered', 'confirmed']).first()
+            if order and order.buyer:
+                return order.buyer.username  # username is the wallet address
+            return None
+        except:
+            return None
 
 
 class CreateListingSerializer(serializers.ModelSerializer):
