@@ -484,9 +484,9 @@ class TransactionBuilder:
                 gas_estimate = contract_function.estimate_gas({'from': from_address})
                 transaction['gas'] = hex(int(gas_estimate * 1.5))  # Higher gas for Chainlink
             except Exception as e:
-                transaction['gas'] = hex(500000)  # Higher default for Chainlink
+                transaction['gas'] = hex(2500000)  # Higher default for Chainlink
         else:
-            transaction['gas'] = hex(500000)
+            transaction['gas'] = hex(2500000)
 
         return transaction
 
