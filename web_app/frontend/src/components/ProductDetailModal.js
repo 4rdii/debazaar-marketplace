@@ -54,7 +54,7 @@ const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
         try {
             // STEP 0: Check if user has enough tokens (optional warning)
             console.log(`⚠️ Make sure you have at least ${product.price} ${product.currency} tokens in your wallet!`);
-            console.log(`Token contract: 0xC9C401E0094B2d3d796Ed074b023551038b84F07 (PYUSD)`);
+            console.log(`Token contract: 0x637a1259c6afd7e3adf63993ca7e58bb438ab1b1 (PYUSD)`);
 
             // STEP 1: Approve token spending
             setPurchaseStatus('approving');

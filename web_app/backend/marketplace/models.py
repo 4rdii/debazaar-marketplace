@@ -9,8 +9,7 @@ from datetime import timedelta
 
 
 class CurrencyChoices(models.TextChoices):
-    USDT = 'USDT', _('Tether USD')
-    USDC = 'USDC', _('USD Coin')
+    PYUSD = 'PYUSD', _('PayPal USD')
 
 
 class UserProfile(models.Model):
@@ -65,9 +64,9 @@ class Listing(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
     price = models.DecimalField(max_digits=18, decimal_places=8, help_text="Price with up to 8 decimal places for precise crypto amounts")
-    currency = models.CharField(max_length=10, choices=CurrencyChoices.choices, default=CurrencyChoices.USDT)
+    currency = models.CharField(max_length=10, choices=CurrencyChoices.choices, default=CurrencyChoices.PYUSD)
     token_address = models.CharField(max_length=42)
-    token_decimals = models.IntegerField(default=6, help_text="Token decimals (e.g., 6 for USDC/USDT)")
+    token_decimals = models.IntegerField(default=6, help_text="Token decimals (e.g., 6 for PYUSD)")
     file_path = models.CharField(max_length=500, blank=True, null=True)
     metadata_cid = models.CharField(max_length=100, blank=True, null=True)
     image_url = models.TextField(default='')

@@ -159,8 +159,7 @@ def create_sample_products():
 
     count = 0
     token_addresses = [
-        "0x55d398326f99059fF775485246999027B3197955",  # USDT BSC
-        "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",  # USDC BSC
+        "0x637a1259c6afd7e3adf63993ca7e58bb438ab1b1",  # PYUSD (Arbitrum Sepolia)
     ]
 
     for category, products in PRODUCT_CATEGORIES.items():
@@ -168,7 +167,7 @@ def create_sample_products():
             try:
                 # Get a random seller
                 seller = random.choice(sellers)
-                currency = random.choice([CurrencyChoices.USDT, CurrencyChoices.USDC])
+                currency = CurrencyChoices.PYUSD
 
                 # Get placeholder image
                 print(f"Fetching image for: {product_data['title']}")
@@ -181,7 +180,7 @@ def create_sample_products():
                     description=product_data['desc'],
                     price=product_data['price'],
                     currency=currency,
-                    token_address=token_addresses[0] if currency == CurrencyChoices.USDT else token_addresses[1],
+                    token_address=token_addresses[0],
                     image_url=image_url,
                     payment_method=random.choice(['escrow', 'direct']),
                     listing_duration_days=random.choice([7, 14, 30, 60, 90]),

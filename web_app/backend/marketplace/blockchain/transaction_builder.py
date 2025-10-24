@@ -135,8 +135,8 @@ class TransactionBuilder:
 
         Args:
             listing_id (str): Unique listing ID (bytes32 hex string)
-            token_symbol (str): Token symbol ('PYUSD', 'USDC', 'USDT')
-            amount_in_tokens (float): Amount in token units (e.g., 100.5 for 100.5 USDC)
+            token_symbol (str): Token symbol ('PYUSD')
+            amount_in_tokens (float): Amount in token units (e.g., 100.5 for 100.5 PYUSD)
             expiration_timestamp (int): Unix timestamp when listing expires
             escrow_type (str): Escrow type ('disputable', 'api_approval', 'onchain_approval')
             from_address (str): Seller's wallet address
@@ -149,7 +149,7 @@ class TransactionBuilder:
         if not token_address:
             raise ValueError(f"Token {token_symbol} not found on {self.network_name}")
 
-        # Convert amount to wei (assuming 6 decimals for USDC/USDT/PYUSD)
+        # Convert amount to wei (assuming 6 decimals for PYUSD)
         amount_wei = int(amount_in_tokens * 10**token_decimals)
 
         # Get escrow type enum value
@@ -259,7 +259,7 @@ class TransactionBuilder:
         Build unsigned transaction for ERC20 token approval
 
         Args:
-            token_symbol (str): Token symbol ('PYUSD', 'USDC', 'USDT')
+            token_symbol (str): Token symbol ('PYUSD')
             amount_in_tokens (float): Amount in token units
             from_address (str): Buyer's wallet address
             token_decimals (int): Token decimals
@@ -271,7 +271,7 @@ class TransactionBuilder:
         if not token_address:
             raise ValueError(f"Token {token_symbol} not found on {self.network_name}")
 
-        # Convert amount to wei (assuming 6 decimals for USDC/USDT/PYUSD)
+        # Convert amount to wei (assuming 6 decimals for PYUSD)
         amount_wei = int(amount_in_tokens * 10**token_decimals)
 
         token_contract = self.contract_service.get_erc20_contract(token_address)

@@ -207,8 +207,8 @@ export const getBalance = async (address) => {
 };
 
 /**
- * Get USDT token balance
- * You'll need the USDT contract address for your network
+ * Get PYUSD token balance
+ * Provide the PYUSD contract address for your network
  */
 export const getTokenBalance = async (address, tokenContractAddress) => {
     try {
