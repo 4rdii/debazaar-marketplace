@@ -652,7 +652,8 @@ class PurchaseListingTransactionView(generics.GenericAPIView):
             amount=listing.price,
             token_address=listing.token_address,
             status='created',  # Will update to 'paid' after tx confirmation
-            deadline=datetime.fromtimestamp(deadline_timestamp)
+            deadline=datetime.fromtimestamp(deadline_timestamp),
+            tweet_id=data.get('tweet_id')
         )
 
         # Build extraData based on escrow type

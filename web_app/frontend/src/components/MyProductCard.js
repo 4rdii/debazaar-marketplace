@@ -154,6 +154,25 @@ const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
                         </div>
                     </div>
                 )}
+                {product.orders?.[0]?.tweet_id && ['filled', 'delivered'].includes(product.status) && (
+                    <div style={{
+                        backgroundColor: '#f0f8ff',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        marginTop: '8px',
+                        fontSize: '12px'
+                    }}>
+                        <strong>🐦 Tweet ID to Repost:</strong>
+                        <div style={{
+                            fontFamily: 'monospace',
+                            fontSize: '11px',
+                            wordBreak: 'break-all',
+                            marginTop: '4px'
+                        }}>
+                            {product.orders[0].tweet_id}
+                        </div>
+                    </div>
+                )}
                 <div className="product-actions">
                     <button className="view-btn" onClick={() => onWatchClick(product)}>View</button>
                     {product.status === 'filled' && (

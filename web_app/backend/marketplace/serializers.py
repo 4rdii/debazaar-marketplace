@@ -21,7 +21,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class OrderSimpleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ['id', 'order_id', 'status', 'delivered_at', 'created_at']
+        fields = ['id', 'order_id', 'status', 'delivered_at', 'tweet_id', 'created_at']
 
 
 class ListingSerializer(serializers.ModelSerializer):
