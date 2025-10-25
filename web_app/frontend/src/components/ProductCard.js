@@ -12,9 +12,14 @@ const ProductCard = ({ product, onWatchClick, onBuyClick }) => {
 
     return (
         <div className="product-card">
-            {['filled', 'delivered', 'disputed', 'released'].includes(product.status) && (
+            {product.status === 'delivered' && (
                 <div className="sold-overlay">
                     <div className="sold-badge">SOLD</div>
+                </div>
+            )}
+            {product.status !== 'open' && product.status !== 'delivered' && (
+                <div className="sold-overlay">
+                    <div className="reserved-badge">RESERVED</div>
                 </div>
             )}
             {product.image_url && (
