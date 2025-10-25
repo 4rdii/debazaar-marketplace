@@ -9,7 +9,7 @@ const AddProductForm = ({ onClose, onSubmit }) => {
         title: '',
         description: '',
         price: '',
-        currency: 'USDT',
+        currency: 'PYUSD',
         image_url: '',
         payment_method: 'escrow',
         escrow_type: 'disputable',
@@ -348,7 +348,7 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                     <input
                         type="number"
                         name="price"
-                        placeholder="Price (e.g., 1.50 for USDT/USDC)"
+                        placeholder="Price in PYUSD (e.g. 1.50 PYUSD)"
                         value={formData.price}
                         onChange={handleChange}
                         step="0.00000001"
@@ -357,8 +357,7 @@ const AddProductForm = ({ onClose, onSubmit }) => {
                     />
 
                     <select name="currency" value={formData.currency} onChange={handleChange}>
-                        <option value="USDT">USDT (Tether USD)</option>
-                        <option value="USDC">USDC (USD Coin)</option>
+                        <option value="PYUSD">PYUSD (PayPal USD)</option>
                     </select>
 
 

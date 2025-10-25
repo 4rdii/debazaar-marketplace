@@ -209,7 +209,7 @@ CONTRACT_ADDRESSES = {
 # Token Addresses
 TOKEN_ADDRESSES = {
     'arbitrum_sepolia': {
-        'PYUSD': '0xC9C401E0094B2d3d796Ed074b023551038b84F07',
+        'PYUSD': '0x637a1259c6afd7e3adf63993ca7e58bb438ab1b1',
         'USDC': '0xC9C401E0094B2d3d796Ed074b023551038b84F07',  # Using PYUSD as mock
         'USDT': '0xC9C401E0094B2d3d796Ed074b023551038b84F07',  # Using PYUSD as mock
     },

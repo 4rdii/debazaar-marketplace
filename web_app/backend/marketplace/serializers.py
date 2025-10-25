@@ -184,7 +184,7 @@ class CreateListingTransactionSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=200, required=True)
     description = serializers.CharField(required=True)
     price = serializers.DecimalField(max_digits=18, decimal_places=8, required=True)
-    currency = serializers.ChoiceField(choices=['PYUSD', 'USDC', 'USDT'], default='PYUSD')
+    currency = serializers.ChoiceField(choices=['PYUSD'], default='PYUSD')
     image_url = serializers.CharField(required=False, allow_blank=True, default='')
     escrow_type = serializers.ChoiceField(
         choices=['disputable', 'api_approval', 'onchain_approval'],
