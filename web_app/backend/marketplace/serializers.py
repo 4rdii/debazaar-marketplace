@@ -21,7 +21,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class OrderSimpleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ['id', 'order_id', 'status', 'created_at']
+        fields = ['id', 'order_id', 'status', 'delivered_at', 'created_at']
 
 
 class ListingSerializer(serializers.ModelSerializer):
@@ -95,8 +95,8 @@ class OrderSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Order
-        fields = ['order_id', 'listing', 'buyer', 'seller', 'amount', 'token_address', 
-                 'status', 'escrow_tx_hash', 'delivery_cid', 'deadline', 'created_at', 'updated_at']
+        fields = ['order_id', 'listing', 'buyer', 'seller', 'amount', 'token_address',
+                 'status', 'escrow_tx_hash', 'delivery_cid', 'deadline', 'delivered_at', 'created_at', 'updated_at']
         read_only_fields = ['order_id', 'created_at', 'updated_at']
 
 

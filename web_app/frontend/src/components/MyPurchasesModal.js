@@ -103,14 +103,17 @@ const MyPurchasesModal = ({ onClose, authUser, onProductClick }) => {
             // Build dispute transaction
             const disputeData = await api.disputeDeliveryTransaction(orderId, auth.walletAddress);
 
-            // Send transaction
-            const txHash = await sendTransaction(disputeData.transaction);
+            // Send transaction with entropy fee
+            const txHash = await sendTransaction({
+                ...disputeData.transaction,
+                value: '0x' + disputeData.entropy_fee_wei.toString(16)
+            });
 
             // Wait for confirmation
             await waitForTransaction(txHash);
 
             // Confirm on backend
-            await api.confirmDisputeTransaction(orderId, txHash);
+            await api.confirmDisputeTransaction(orderId, txHash, auth.walletAddress);
 
             alert('✅ Dispute opened. An arbiter will review the case.');
             loadPurchases();

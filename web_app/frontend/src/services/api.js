@@ -301,13 +301,14 @@ export const api = {
      * Confirm dispute transaction was sent
      * @param {number} orderId - Order ID
      * @param {string} txHash - Transaction hash
+     * @param {string} initiatorWallet - Wallet address of dispute initiator
      * @returns {Promise<{success: boolean}>}
      */
-    confirmDisputeTransaction: async (orderId, txHash) => {
+    confirmDisputeTransaction: async (orderId, txHash, initiatorWallet) => {
         const response = await fetch(`${API_BASE}/orders/${orderId}/confirm-dispute/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tx_hash: txHash })
+            body: JSON.stringify({ tx_hash: txHash, initiator_wallet: initiatorWallet })
         });
         if (!response.ok) {
             const errorData = await response.json();

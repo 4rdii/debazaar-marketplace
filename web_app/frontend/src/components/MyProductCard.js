@@ -8,8 +8,25 @@ import './MyProductCard.css';
 const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isDelivering, setIsDelivering] = useState(false);
+    const [isDisputing, setIsDisputing] = useState(false);
+    const [canDispute, setCanDispute] = useState(false);
 
     console.log('MyProductCard rendered for product:', product.title);
+
+    // Check if 10 seconds passed since delivery
+    React.useEffect(() => {
+        if (product.status === 'delivered' && product.orders?.[0]?.delivered_at) {
+            const checkDeadline = () => {
+                const deliveredAt = new Date(product.orders[0].delivered_at);
+                const disputeDeadline = new Date(deliveredAt.getTime() + 10000); // 10 seconds
+                setCanDispute(new Date() >= disputeDeadline);
+            };
+
+            checkDeadline();
+            const interval = setInterval(checkDeadline, 1000);
+            return () => clearInterval(interval);
+        }
+    }, [product]);
 
     const handleDelete = async () => {
         if (window.confirm(`Are you sure you want to delete "${product.title}"?`)) {
@@ -56,6 +73,46 @@ const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
             alert(`Failed to mark as delivered: ${error.message}`);
         } finally {
             setIsDelivering(false);
+        }
+    };
+
+    const handleDispute = async () => {
+        const auth = getStoredAuth();
+        if (!auth || !auth.walletAddress) {
+            alert('Please connect your wallet first!');
+            return;
+        }
+
+        if (!window.confirm('Are you sure you want to dispute this order? This requires an entropy fee.')) {
+            return;
+        }
+
+        setIsDisputing(true);
+        try {
+            const order = product.orders?.[0];
+            if (!order) {
+                throw new Error('No order found for this product');
+            }
+
+            const disputeData = await api.disputeDeliveryTransaction(order.id, auth.walletAddress);
+            const txHash = await sendTransaction({
+                ...disputeData.transaction,
+                value: '0x' + disputeData.entropy_fee_wei.toString(16)
+            });
+            await waitForTransaction(txHash);
+            await api.confirmDisputeTransaction(order.id, txHash, auth.walletAddress);
+
+            alert('✅ Dispute submitted successfully!');
+
+            if (onDelivered) {
+                onDelivered(product.id);
+            }
+        } catch (error) {
+            console.error('Dispute error:', error);
+            const errorMsg = error?.message || error?.toString() || 'Unknown error';
+            alert(`Failed to dispute: ${errorMsg}`);
+        } finally {
+            setIsDisputing(false);
         }
     };
 
@@ -107,6 +164,16 @@ const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
                             style={{ backgroundColor: '#28a745', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                         >
                             {isDelivering ? 'Delivering...' : '📦 Delivered'}
+                        </button>
+                    )}
+                    {product.status === 'delivered' && canDispute && (
+                        <button
+                            className="dispute-btn"
+                            onClick={handleDispute}
+                            disabled={isDisputing}
+                            style={{ backgroundColor: '#ff9800', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            {isDisputing ? 'Disputing...' : '⚠️ Dispute'}
                         </button>
                     )}
                     <button

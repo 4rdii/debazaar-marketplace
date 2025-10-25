@@ -860,7 +860,9 @@ class ConfirmDeliveryTransactionView(generics.GenericAPIView):
         tx_hash = serializer.validated_data['tx_hash']
 
         # Update order status
+        from django.utils import timezone
         order.status = 'delivered'
+        order.delivered_at = timezone.now()
         order.save()
 
         # Update listing status
@@ -989,8 +991,9 @@ class ConfirmDeliveryTransactionByListingView(generics.GenericAPIView):
             listing.status = 'delivered'
             listing.save()
 
-            # Update ALL orders for this listing to delivered
-            listing.orders.all().update(status='delivered')
+            # Update ALL orders for this listing to delivered with timestamp
+            from django.utils import timezone
+            listing.orders.all().update(status='delivered', delivered_at=timezone.now())
 
             return Response({
                 'success': True,
@@ -1170,6 +1173,20 @@ class DisputeListingTransactionView(generics.GenericAPIView):
             return Response({
                 'error': f'Cannot dispute order in status: {order.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Seller can only dispute 10 seconds after delivery
+        from django.utils import timezone
+        from datetime import timedelta
+        if wallet_address == order.seller.username and order.status == 'delivered':
+            if not order.delivered_at:
+                return Response({
+                    'error': 'Delivery timestamp not set'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            dispute_deadline = order.delivered_at + timedelta(seconds=10)
+            if timezone.now() < dispute_deadline:
+                return Response({
+                    'error': 'Seller can only dispute 10 seconds after delivery'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         # Get entropy fee from contract (fixed value for Arbitrum Sepolia)
         entropy_fee = 414405000000001  # Fixed entropy fee in wei
