@@ -307,13 +307,15 @@ const ProductDetailModal = ({ product, onClose, onPurchaseSuccess }) => {
                                             </small>
                                         </div>
                                     )}
-                                    <button
-                                        className="buy-button-large"
-                                        onClick={handlePurchase}
-                                        disabled={isPurchasing}
-                                    >
-                                        {isPurchasing ? getPurchaseButtonText() : 'Buy It Now'}
-                                    </button>
+                                    {product.status === 'open' && (
+                                        <button
+                                            className="buy-button-large"
+                                            onClick={handlePurchase}
+                                            disabled={isPurchasing}
+                                        >
+                                            {isPurchasing ? getPurchaseButtonText() : 'Buy It Now'}
+                                        </button>
+                                    )}
                                     {isPurchasing && (
                                         <div style={{
                                             marginTop: '16px',
