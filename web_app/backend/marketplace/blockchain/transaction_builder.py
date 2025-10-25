@@ -127,7 +127,7 @@ class TransactionBuilder:
         amount_in_tokens,
         expiration_timestamp,
         escrow_type='disputable',
-        from_address=None, 
+        from_address=None,
         token_decimals=6
     ):
         """
@@ -148,6 +148,9 @@ class TransactionBuilder:
         token_address = get_token_address(token_symbol, self.network_name)
         if not token_address:
             raise ValueError(f"Token {token_symbol} not found on {self.network_name}")
+
+        # Convert to checksum address
+        token_address = Web3.to_checksum_address(token_address)
 
         # Convert amount to wei (assuming 6 decimals for PYUSD)
         amount_wei = int(amount_in_tokens * 10**token_decimals)
@@ -252,7 +255,7 @@ class TransactionBuilder:
         self,
         token_symbol,
         amount_in_tokens,
-        from_address=None, 
+        from_address=None,
         token_decimals=6
     ):
         """
@@ -270,6 +273,9 @@ class TransactionBuilder:
         token_address = get_token_address(token_symbol, self.network_name)
         if not token_address:
             raise ValueError(f"Token {token_symbol} not found on {self.network_name}")
+
+        # Convert to checksum address
+        token_address = Web3.to_checksum_address(token_address)
 
         # Convert amount to wei (assuming 6 decimals for PYUSD)
         amount_wei = int(amount_in_tokens * 10**token_decimals)
