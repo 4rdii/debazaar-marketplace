@@ -185,7 +185,7 @@ const MyProductCard = ({ product, onWatchClick, onDelete, onDelivered }) => {
                             {isDelivering ? 'Delivering...' : '📦 Delivered'}
                         </button>
                     )}
-                    {product.status === 'delivered' && canDispute && (
+                    {product.status === 'delivered' && canDispute && product.escrow_type === 'disputable' && (
                         <button
                             className="dispute-btn"
                             onClick={handleDispute}
