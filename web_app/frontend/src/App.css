@@ -777,12 +777,6 @@ body {
     color: #333;
 }
 
-.form-label::after {
-    content: " (Optional)";
-    font-weight: 400;
-    color: #6c757d;
-    font-size: 12px;
-}
 
 /* Product Detail Modal */
 .product-detail-modal {
