@@ -4,7 +4,8 @@
     "test": "hardhat test",
     "deploy:arbitrumSepolia": "hardhat ignition deploy ./ignition/modules/ArbitrumSepoliaDeployment.ts --network arbitrumSepolia --verify",
     "check-deployment": "hardhat ignition status --network arbitrumSepolia",
-    "test:chainlink-functions": "hardhat run scripts/test-chainlink-functions.ts --network arbitrumSepolia"
+    "test:chainlink-functions": "hardhat run scripts/test-chainlink-functions.ts --network arbitrumSepolia",
+    "test:sign-with-arbiters": "hardhat run scripts/test-sign-with-arbiters.ts --network arbitrumSepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.2",
