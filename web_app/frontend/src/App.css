@@ -41,6 +41,12 @@ body {
     min-width: 120px;
 }
 
+.logo {
+    height: 50px;
+    width: auto;
+    object-fit: contain;
+}
+
 .header h1 {
     font-size: 28px;
     font-weight: bold;
@@ -567,6 +573,10 @@ body {
         flex: 1;
     }
 
+    .logo {
+        height: 40px;
+    }
+
     .header h1 {
         font-size: 24px;
     }
@@ -632,6 +642,10 @@ body {
     .products-grid {
         grid-template-columns: 1fr;
         padding: 12px;
+    }
+
+    .logo {
+        height: 35px;
     }
 
     .header h1 {

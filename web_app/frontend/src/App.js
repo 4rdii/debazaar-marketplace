@@ -219,7 +219,10 @@ function App() {
         <div className="app">
             <div className="header">
                 <div className="header-left">
-                    <h1>DeBazaar</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <img src="/images/DeBazaarLogo.png" alt="DeBazaar" className="logo" />
+                        <h1>DeBazaar</h1>
+                    </div>
                     {authUser && walletAddress && (
                         <div className="user-info">
                             Connected: {formatAddress(walletAddress)}
